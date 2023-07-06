@@ -2,7 +2,9 @@ package main
 
 import (
 	"at23/messages"
+	mongo "at23/storage/mongo"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"strconv"
@@ -24,10 +26,11 @@ type PingPongActor struct {
 	system *actor.ActorSystem
 }
 
+// po pravilu bi trebao biti definsian endpoint ali spolja se uglavnom gadja odrejedni Kind agenta
 func (*PingPongActor) PingStorage(r *messages.Ping) *messages.Pong {
 	fmt.Println("PING")
 	var adr []string
-	adr = append(adr, "test")
+	adr = append(adr, "funkcija endpoint")
 	pong := &messages.Pong{Adrese: adr}
 	return pong
 
@@ -35,15 +38,17 @@ func (*PingPongActor) PingStorage(r *messages.Ping) *messages.Pong {
 func (*PingPongActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
 	case *messages.Ping:
-		fmt.Println("PING")
+		fmt.Println("Pogodjeno skladiste", naziv_skladista)
 		var adr []string
-		adr = append(adr, "test")
+		adr = append(adr, naziv_skladista)
 		pong := &messages.Pong{Adrese: adr}
 		context.Respond(pong)
 	case *messages.Pong:
-		fmt.Println("Pong primljen sa : ", msg.Adrese)
-		pong := &messages.Pong{Adrese: msg.Adrese}
+		fmt.Println("Pogodjeno skladiste", naziv_skladista)
+		pong := &messages.Pong{Adrese: append(msg.Adrese, naziv_skladista)}
 		context.Respond(pong)
+	case *messages.NoviArtikli:
+		mongo.DodajArtikleProto(msg.Artikli)
 	}
 }
 func main() {
@@ -63,14 +68,19 @@ func main() {
 	c := cluster.New(system, clusterConfig)
 	c.StartMember()
 	defer c.Shutdown(false)
+	// for _, member := range c.MemberList.Members().Members() {
+	// 	fmt.Println("MEMBER:", member)
+	// }
 	//javljanje na coordinatora
-	for _, member := range c.MemberList.Members().Members() {
-		fmt.Println("MEMBER:", member)
-	}
 	for {
-		// for _, member := range c.MemberList.Members().Members() {
-		// 	fmt.Println("MEMBER:", member)
-		// }
+		//testiranje dodavanje novog proizvoda ili dodavanje novih kolicina postojeceg
+		var artikli []mongo.Proizvod
+		artikli = append(artikli, mongo.Proizvod{Identifikator: "1", Kolicina: rand.Intn(7)})
+		artikli = append(artikli, mongo.Proizvod{Identifikator: "2", Kolicina: rand.Intn(7)})
+		artikli = append(artikli, mongo.Proizvod{Identifikator: "3", Kolicina: rand.Intn(7)})
+		mongo.DodajArtikle(artikli)
+
+		//javljanje na coordinatora- radi se samo jednom
 		spawnResponse, err := c.Remote.SpawnNamed("127.0.0.1:8080", "coord", "ping", time.Second)
 		if err != nil {
 			continue

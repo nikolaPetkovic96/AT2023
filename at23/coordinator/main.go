@@ -36,31 +36,31 @@ type PingActor2 struct {
 func (p *PingActor2) Receive(ctx actor.Context) {
 	switch ctx.Message().(type) {
 	case struct{}:
-		ch := make(chan *actor.Future, len(skladista_clusteri))
+		//ch := make(chan *actor.Future, len(skladista_clusteri))
 
 		for _, skl := range skladista_clusteri {
 			ping := &messages.Ping{}
 
 			grainPid := skl.Get("pp"+skl.Config.Name, "Pingpong")
-			//future := ctx.RequestFuture(grainPid, ping, time.Second)
-			ch <- ctx.RequestFuture(grainPid, ping, time.Second)
-			// result, err := future.Result()
-			// if err != nil {
-			// 	fmt.Println(err.Error(), skl)
-			// 	return
-			// }
-			// fmt.Printf("Received %v", result)
-		}
-		close(ch)
-		for range ch {
-			temp := <-ch
-			result, err := temp.Result()
+			future := ctx.RequestFuture(grainPid, ping, time.Second)
+			//ch <- ctx.RequestFuture(grainPid, ping, time.Second)
+			result, err := future.Result()
 			if err != nil {
-				fmt.Println(err.Error())
+				fmt.Println(err.Error(), skl)
 				return
 			}
 			fmt.Printf("Received %v", result)
 		}
+		//close(ch)
+		// for range ch {
+		// 	temp := <-ch
+		// 	result, err := temp.Result()
+		// 	if err != nil {
+		// 		fmt.Println(err.Error())
+		// 		return
+		// 	}
+		// 	fmt.Printf("Received %v", result)
+		// }
 
 	}
 
@@ -112,7 +112,7 @@ func main() {
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case <-ticker.C: //salje ping svim klasterima
 			system2.Root.Send(pingPid, struct{}{})
 		case <-finish:
 			return
