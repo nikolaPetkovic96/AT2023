@@ -1,0 +1,19 @@
+syntax = "proto3";
+package messages;
+option go_package="at23/messages";
+import "actor.proto";
+
+message Ping{
+    string adresa = 1;
+    int32 port =2;
+    string ime = 3;
+    int32 port2 = 4;
+}
+
+message Pong{
+    repeated string adrese = 1;
+}
+
+service Pingpong {
+    rpc PingStorage(Ping) returns (Pong) {}
+}
