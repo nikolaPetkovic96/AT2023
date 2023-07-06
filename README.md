@@ -1,17 +1,12 @@
 # AT2023
-Agentski/aktorski sistem za upravljenje lancem snabdevanja
-
-Projekat iz predmeta Agentske tehonolgije, skolsa godina 2022/2023
-
-Clanovi tima:
-
-RA 139/2019 Aleksandar Hornjak,
-
-RA 173/2019 Stanimirovic Dusan,
-
-RA 232/2015 Nikola Petkovic
+Agentski/aktorski sistem za upravljenje lancem snabdevanja<br>
+Projekat iz predmeta Agentske tehonolgije, skolsa godina 2022/2023<br>
+Clanovi tima:<br>
+RA 139/2019 Aleksandar Hornjak,<br>
+RA 173/2019 Stanimirovic Dusan,<br>
+RA 232/2015 Nikola Petkovic<br>
 <br>
-
+====================================<br>
 POKRETANJE PROJEKTA (iz at23 foldera)<br>
 STORAGE:(za sad portovi i nazivSkladista moraju biti jedinstveni)<br>
 cd storage<br>
