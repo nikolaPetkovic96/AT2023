@@ -1,0 +1,13 @@
+syntax = "proto3";
+package messages;
+option go_package="./";
+
+message Simulate{
+    string name = 1;
+}
+
+message StartSimulation{
+    string produkt_id =1;
+    int32 kolicina =2;
+}
+

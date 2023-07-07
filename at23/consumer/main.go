@@ -20,21 +20,21 @@ type SimulationActor struct {
 }
 
 func (p *SimulationActor) Receive(context actor.Context) {
-  switch msg := context.Message().(type) {
+  switch context.Message().(type) {
     case *messages.Simulate:
-      fmt.Println("Starting sumulation")
-      // conde to send message
-      consumerProps := actor.PropsFromProducer(func() actor.Actor { return &ConsumerActor{} }) 
+      fmt.Println("Starting simulation")
+      //code to send message
+      consumerProps := actor.PropsFromProducer(func() actor.Actor { return &ConsumerActor{} })
 		  consumerPID := context.Spawn(consumerProps)
-      
-      context.Send(msg.consumerPID, &messages.StartSimulation{
-            SomeValue: "result",
+      context.Send(consumerPID, &messages.StartSimulation{
+        ProduktId : "Name",
+        Kolicina: 1 ,
       })
       
       // or some random value to start simulations
       time.Sleep(10 * time.Second)
-      context.Send(msg.Self(), &messages.Simulate{
-            SomeValue: "result",
+      context.Send(context.Self(), &messages.Simulate{
+        Name: "Name",
       })
 
 
@@ -43,9 +43,9 @@ func (p *SimulationActor) Receive(context actor.Context) {
 }
 
 func (state *ConsumerActor) Receive(context actor.Context) {
-	switch msg := context.Message().(type) {
-    case *messages.StartSimulation: //dodaje skladiste prema nazivu u cluster, sem ako vec ne postoji node zaduzen za to skladiste
-    
+	switch context.Message().(type) {
+    case *messages.StartSimulation:
+      fmt.Println("Starting..")
   }
 }
 
@@ -58,8 +58,9 @@ func main() {
 	context := system.Root
 	props := actor.PropsFromProducer(func() actor.Actor { return &SimulationActor{} })
 	pid := context.Spawn(props)
-	message := &messages.Echo{Message: "hej", Sender: pid}
+	message := &messages.Simulate{Name: "Name"}
 
+  system.Root.Spawn(props)
 	// this is to spawn remote actor we want to communicate with
 	// spawnResponse, err := remoting.SpawnNamed("127.0.0.1:8090", "myactor", "hello", time.Second)
   // TODO spawn remote actor in distributor
@@ -69,12 +70,13 @@ func main() {
 		panic(err)
 		return
 	}
+  context.ActorSystem().Root.Send(pid, message)
 
 	// get spawned PID
-	spawnedPID := spawnResponse.Pid
-	for i := 0; i < 10; i++ {
-		context.Send(spawnedPID, message)
-	}
-
+	//spawnedPID := spawnResponse.Pid
+	//for i := 0; i < 10; i++ {
+	//	context.Send(spawnedPID, message)
+	//}
+  fmt.Println(spawnResponse)
 	console.ReadLine()
 	}
