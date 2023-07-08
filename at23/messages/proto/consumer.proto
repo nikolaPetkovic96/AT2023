@@ -1,6 +1,6 @@
 syntax = "proto3";
 package messages;
-option go_package="./";
+option go_package="at23/messages";
 
 message Simulate{
     string name = 1;
@@ -10,4 +10,16 @@ message StartSimulation{
     string produkt_id =1;
     int32 kolicina =2;
 }
+
+
+message Stavka{
+    string produkt_id =1;
+    int32 kolicina =2;
+}
+
+message BuyProduct{
+    string transaction_id = 1; 
+    repeated Stavka stavke = 2;
+}
+
 

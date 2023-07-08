@@ -32,6 +32,8 @@ type PingActor struct {
 type PingActor2 struct {
 	system *actor.ActorSystem
 }
+type ConsumerActor struct {
+}
 
 func (p *PingActor2) Receive(ctx actor.Context) {
 	switch ctx.Message().(type) {
@@ -76,6 +78,14 @@ func (state *PingActor) Receive(context actor.Context) {
 	}
 }
 
+func (state *ConsumerActor) Receive(context actor.Context) {
+  fmt.Println("asdasdasdadsdasads adsa dsa dsads ad sad s")
+  switch context.Message().(type) {
+	case *messages.BuyProduct: 
+    fmt.Println("Coordinator Pingovan od strane :")
+	}
+}
+
 func main() {
 	// system := actor.NewActorSystem()
 	// cluster_system = system
@@ -95,6 +105,7 @@ func main() {
 
 	// //registracija agenta kojem ce se clusteri obracati pri inicijalizaciji
 	remoting.Register("ping", actor.PropsFromProducer(func() actor.Actor { return &PingActor{system: system2} }))
+  remoting.Register("consumer", actor.PropsFromProducer(func() actor.Actor {return &ConsumerActor{}}))
 
 	ping2Prop := actor.PropsFromProducer(func() actor.Actor {
 		return &PingActor2{

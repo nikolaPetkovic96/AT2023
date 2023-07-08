@@ -5,21 +5,18 @@ import (
 	"fmt"
 	"time"
 
-	//mongo "at23/coordinator/mongo"
   console "github.com/asynkron/goconsole"
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/remote"
+  "github.com/asynkron/protoactor-go/remote"
 )
 
 
 type ConsumerActor struct {
-	system *actor.ActorSystem
 }
 type SimulationActor struct {
-	system *actor.ActorSystem
 }
 
-func (p *SimulationActor) Receive(context actor.Context) {
+func (state *SimulationActor) Receive(context actor.Context) {
   switch context.Message().(type) {
     case *messages.Simulate:
       fmt.Println("Starting simulation")
@@ -44,39 +41,42 @@ func (p *SimulationActor) Receive(context actor.Context) {
 
 func (state *ConsumerActor) Receive(context actor.Context) {
 	switch context.Message().(type) {
-    case *messages.StartSimulation:
-      fmt.Println("Starting..")
+  case *messages.StartSimulation:
+    {
+      fmt.Println("Simulating..")
+      spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8080", "whatever", "consumer", 5*time.Second)
+      context.Send(spawnResponse.Pid, &messages.BuyProduct{
+        TransactionId: "123",
+        Stavke: []*messages.Stavka{
+          {
+          ProduktId: "123",
+           Kolicina: 2, 
+          },
+          {
+            ProduktId: "442",
+            Kolicina: 4,
+          },
+        },
+      },
+      )
+    }
+
   }
 }
 
+var remoting *remote.Remote
+
 func main() {
   system := actor.NewActorSystem()
-	remoteConfig := remote.Configure("127.0.0.1", 8092)
-	remoting := remote.NewRemote(system, remoteConfig)
-	remoting.Start()
-
+  remoteConfig := remote.Configure("127.0.0.1", 8090)
+  remoting = remote.NewRemote(system, remoteConfig)
+  remoting.Start()
 	context := system.Root
 	props := actor.PropsFromProducer(func() actor.Actor { return &SimulationActor{} })
 	pid := context.Spawn(props)
 	message := &messages.Simulate{Name: "Name"}
 
-  system.Root.Spawn(props)
-	// this is to spawn remote actor we want to communicate with
-	// spawnResponse, err := remoting.SpawnNamed("127.0.0.1:8090", "myactor", "hello", time.Second)
-  // TODO spawn remote actor in distributor
-
-  spawnResponse, err := remoting.SpawnNamed("127.0.0.1:8092", "SimulationActor", "hello", time.Second)
-	if err != nil {
-		panic(err)
-		return
-	}
   context.ActorSystem().Root.Send(pid, message)
 
-	// get spawned PID
-	//spawnedPID := spawnResponse.Pid
-	//for i := 0; i < 10; i++ {
-	//	context.Send(spawnedPID, message)
-	//}
-  fmt.Println(spawnResponse)
 	console.ReadLine()
 	}
