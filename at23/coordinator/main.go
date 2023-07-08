@@ -83,7 +83,8 @@ func (state *ConsumerActor) Receive(context actor.Context) {
   switch msg := context.Message().(type) {
 	case *messages.BuyProduct: 
     fmt.Println("Requested items:",msg.Stavke)
-	}
+    context.Send(msg.Sender, &messages.Ping{})	
+  }
 }
 
 func main() {

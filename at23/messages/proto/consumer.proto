@@ -2,6 +2,8 @@ syntax = "proto3";
 package messages;
 option go_package="at23/messages";
 
+import "actor.proto";
+
 message Simulate{
     string name = 1;
 }
@@ -20,6 +22,7 @@ message Stavka{
 message BuyProduct{
     string transaction_id = 1; 
     repeated Stavka stavke = 2;
+    actor.PID Sender = 3;
 }
 
 

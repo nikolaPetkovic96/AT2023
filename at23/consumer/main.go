@@ -56,9 +56,11 @@ func (state *ConsumerActor) Receive(context actor.Context) {
 					Kolicina:  4,
 				},
 			},
+      Sender: context.Self(),
 		},
 		)
-
+  case *messages.Ping:
+    fmt.Println("Transaction completed!")
 	}
 }
 
