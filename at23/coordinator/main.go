@@ -79,10 +79,10 @@ func (state *PingActor) Receive(context actor.Context) {
 }
 
 func (state *ConsumerActor) Receive(context actor.Context) {
-  fmt.Println("asdasdasdadsdasads adsa dsa dsads ad sad s")
-  switch context.Message().(type) {
+  fmt.Println("Got request from a consumer")
+  switch msg := context.Message().(type) {
 	case *messages.BuyProduct: 
-    fmt.Println("Coordinator Pingovan od strane :")
+    fmt.Println("Requested items:",msg.Stavke)
 	}
 }
 
