@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	console "github.com/asynkron/goconsole"
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
@@ -20,7 +22,13 @@ func (state *SimulationActor) Receive(context actor.Context) {
 	case *messages.Simulate:
 		fmt.Println("Starting simulation")
 		// get random products from state managment
-
+		// spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8091", "consumer-state", "state-man-actor", 10*time.Second)
+		// context.RequestFuture(spawnResponse.Pid, &messages.GetAllProductsState{Sender: context.Self()}, 10*time.Second)
+    context.Send(context.Self(), &messages.ReturnAllProductsState{})
+		// or some random value to start simulations
+		time.Sleep(10 * time.Second)
+		context.Send(context.Self(), &messages.Simulate{})
+	case *messages.ReturnAllProductsState:
 		//code to send message
 		consumerProps := actor.PropsFromProducer(func() actor.Actor { return &ConsumerActor{} })
 		consumerPID := context.Spawn(consumerProps)
@@ -37,23 +45,19 @@ func (state *SimulationActor) Receive(context actor.Context) {
 			},
 		})
 
-		// or some random value to start simulations
-		time.Sleep(10 * time.Second)
-		context.Send(context.Self(), &messages.Simulate{})
-
 	}
 
 }
 
 func (state *ConsumerActor) Receive(context actor.Context) {
-  switch msg := context.Message().(type) {
-  case *messages.StartSimulation:
+	switch msg := context.Message().(type) {
+	case *messages.StartSimulation:
 		fmt.Println("Simulating..")
-		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8080", "whatever", "consumer", 5*time.Second)
+		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8080", "consumer-distributor", "consumer", 5*time.Second)
 		context.Send(spawnResponse.Pid, &messages.BuyProduct{
-			TransactionId: "123",
-			Items: msg.Items,
-			Sender: context.Self(),
+			TransactionId: uuid.NewString(),
+			Items:         msg.Items,
+      Sender: context.Self(),
 		},
 		)
 	case *messages.CompletedTransaction:
@@ -72,6 +76,7 @@ func main() {
 	props := actor.PropsFromProducer(func() actor.Actor { return &SimulationActor{} })
 	pid := context.Spawn(props)
 	message := &messages.Simulate{}
+
 
 	context.ActorSystem().Root.Send(pid, message)
 
