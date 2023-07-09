@@ -9,12 +9,12 @@ message ClockPing{
 }
 
 message GetAllProductsState{
-  actor.PID Sender = 1;
+    actor.PID Sender = 1;
 }
 
 message ReturnAllProductsState{
-    actor.PID Sender = 1;
-    repeated messages.Item Items = 2;
+    repeated messages.Item Items = 1;
+    actor.PID Sender = 2;
 }
 
 

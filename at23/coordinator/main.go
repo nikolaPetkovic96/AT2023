@@ -92,12 +92,11 @@ func (state *ConsumerActor) Receive(context actor.Context) {
 }
 
 func (state *StateActor) Receive(context actor.Context) {
-  switch context.Message().(type) {
+  switch msg := context.Message().(type) {
 	case *messages.GetAllProductsState:
 		fmt.Println("Pulling data..")
 		// TODO write code that pulls all items from databases and sums them up
-	  spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8091", "whatever2", "state-man-actor", 10*time.Second)
-		context.Send(spawnResponse.Pid, &messages.ReturnAllProductsState{
+		context.Send(msg.Sender, &messages.ReturnAllProductsState{
 			Items: []*messages.Item{
 				{
 					ItemId: "123",

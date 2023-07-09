@@ -25,6 +25,5 @@ message BuyProduct{
 
 message CompletedTransaction{
    string TransactionId = 1; 
-
 }
 

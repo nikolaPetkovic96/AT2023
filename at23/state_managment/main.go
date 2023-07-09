@@ -11,6 +11,7 @@ import (
 )
 
 type StateManagmentActor struct {
+  items []*messages.Item
 }
 type ClockActor struct {
 }
@@ -19,34 +20,49 @@ func (state *ClockActor) Receive(context actor.Context) {
 	switch context.Message().(type) {
 	case *messages.ClockPing:
 		fmt.Println("Clock cycle..")
-		// get random products from state managment
+   
+    stateProps := actor.PropsFromProducer(func() actor.Actor { return &StateManagmentActor{} })
+		statePID, _ := context.SpawnNamed(stateProps, "state")
+		context.Send(statePID, &messages.ClockPing{})
 
-    fmt.Println("Pulling data..")
-		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8080", "state-distributor", "state", 10*time.Second)
-		context.Send(spawnResponse.Pid, &messages.GetAllProductsState{Sender: context.Self()})
 
 		// or some random value to start simulations
-		time.Sleep(10 * time.Second)
-		context.Send(context.Self(), &messages.ClockPing{})
+    time.AfterFunc(10 * time.Second, func() {
+      context.Send(context.Self(), &messages.ClockPing{})
+    })
 	}
 
 }
 
 func (state *StateManagmentActor) Receive(context actor.Context) {
-	fmt.Println("test")
-	fmt.Println("got something", context.Message())
+  // items := []*messages.Item{
+		// 		{
+		// 			ItemId: "123",
+		// 			Amount: 2,
+		// 		},
+		// 		{
+		// 			ItemId: "442",
+		// 			Amount: 4,
+		// 		},
+		// 	}
 	switch msg := context.Message().(type) {
+  case *messages.ClockPing:
+    fmt.Println("Pulling data..")
+	  spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8080", "state-distributor", "state", 10*time.Second)
+		context.Send(spawnResponse.Pid, &messages.GetAllProductsState{Sender: context.Self()})
+    fmt.Println(state.items)
 	case *messages.GetAllProductsState:
-		fmt.Println("Transaction completed!", msg.Sender)
-		context.Send(msg.Sender, messages.Ping{})
+		fmt.Println("Transaction completed!")
+    spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8090", "state-consumer", "simulation", 10*time.Second)
+		context.Send(spawnResponse.Pid, &messages.ReturnAllProductsState{Items: state.items})
 	case *messages.ReturnAllProductsState:
 		fmt.Println("Got items!", msg.Items)
-		items = msg.Items
+	  state.items = msg.Items	
 	}
 }
 
 var remoting *remote.Remote
-var items []*messages.Item
+
 
 func main() {
 	system := actor.NewActorSystem()
@@ -54,7 +70,7 @@ func main() {
 	remoting = remote.NewRemote(system, remoteConfig)
 	remoting.Start()
 
-	remoting.Register("state-man-actor", actor.PropsFromProducer(func() actor.Actor { return &StateManagmentActor{} }))
+	remoting.Register("state", actor.PropsFromProducer(func() actor.Actor { return &StateManagmentActor{} }))
 
 	context := system.Root
 	props := actor.PropsFromProducer(func() actor.Actor { return &ClockActor{} })

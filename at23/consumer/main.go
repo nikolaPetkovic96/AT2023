@@ -18,33 +18,22 @@ type SimulationActor struct {
 }
 
 func (state *SimulationActor) Receive(context actor.Context) {
-	switch context.Message().(type) {
+  switch msg := context.Message().(type) {
 	case *messages.Simulate:
 		fmt.Println("Starting simulation")
-		// get random products from state managment
-		// spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8091", "consumer-state", "state-man-actor", 10*time.Second)
-		// context.RequestFuture(spawnResponse.Pid, &messages.GetAllProductsState{Sender: context.Self()}, 10*time.Second)
-    context.Send(context.Self(), &messages.ReturnAllProductsState{})
-		// or some random value to start simulations
-		time.Sleep(10 * time.Second)
-		context.Send(context.Self(), &messages.Simulate{})
+		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8091", "consumer-state", "state", 5*time.Second)
+    context.Send(spawnResponse.Pid, &messages.GetAllProductsState{})
+		
+    // or some random value to start simulations
+		time.AfterFunc(10 * time.Second, func() {
+      context.Send(context.Self(), &messages.Simulate{})
+    })
 	case *messages.ReturnAllProductsState:
 		//code to send message
+		// TODO get random products from state managment
 		consumerProps := actor.PropsFromProducer(func() actor.Actor { return &ConsumerActor{} })
 		consumerPID := context.Spawn(consumerProps)
-		context.Send(consumerPID, &messages.StartSimulation{
-			Items: []*messages.Item{
-				{
-					ItemId: "123",
-					Amount: 2,
-				},
-				{
-					ItemId: "442",
-					Amount: 4,
-				},
-			},
-		})
-
+		context.Send(consumerPID, &messages.StartSimulation{Items: msg.Items})
 	}
 
 }
@@ -57,7 +46,7 @@ func (state *ConsumerActor) Receive(context actor.Context) {
 		context.Send(spawnResponse.Pid, &messages.BuyProduct{
 			TransactionId: uuid.NewString(),
 			Items:         msg.Items,
-      Sender: context.Self(),
+			Sender:        context.Self(),
 		},
 		)
 	case *messages.CompletedTransaction:
@@ -73,10 +62,14 @@ func main() {
 	remoting = remote.NewRemote(system, remoteConfig)
 	remoting.Start()
 	context := system.Root
-	props := actor.PropsFromProducer(func() actor.Actor { return &SimulationActor{} })
+	
+	remoting.Register("simulation", actor.PropsFromProducer(func() actor.Actor { return &SimulationActor{} }))
+
+  props := actor.PropsFromProducer(func() actor.Actor { return &SimulationActor{} })
 	pid := context.Spawn(props)
 	message := &messages.Simulate{}
 
+  
 
 	context.ActorSystem().Root.Send(pid, message)
 
