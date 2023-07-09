@@ -1,0 +1,20 @@
+syntax = "proto3";
+package messages;
+option go_package="at23/messages";
+
+import "consumer.proto";
+import "actor.proto";
+
+
+message GetItems{
+  repeated Item Items = 1;
+  string TransactionId = 2;
+  actor.PID Sender = 3;
+}
+
+message ReturnItems{
+  repeated Item Items = 1;
+  string TransactionId = 2;
+}
+
+

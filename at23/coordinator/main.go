@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+
 	//mongo "at23/coordinator/mongo"
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/cluster"
@@ -36,6 +38,8 @@ type PingActor2 struct {
 type ConsumerActor struct {
 }
 type StateActor struct {
+}
+type SupplierActor struct {
 }
 
 func (p *PingActor2) Receive(ctx actor.Context) {
@@ -111,6 +115,32 @@ func (state *StateActor) Receive(context actor.Context) {
 	}
 }
 
+func (state *SupplierActor) Receive(context actor.Context) {
+  switch msg := context.Message().(type) {
+  // maybe remove this case in future
+	case *messages.GetItems:
+		fmt.Println("Pulling data..")
+		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8093", "sup", "supplier", 10*time.Second)
+		context.Send(spawnResponse.Pid, &messages.GetItems{
+			Items: []*messages.Item{
+				{
+					ItemId: "123",
+					Amount: 2,
+				},
+				{
+					ItemId: "442",
+					Amount: 4,
+				},
+			},
+			TransactionId: uuid.NewString(),
+      Sender: context.Self(),
+		})
+  case *messages.ReturnItems:
+    fmt.Println("GOT ITEMS BACK! YAY!", msg.Items, msg.TransactionId) 
+
+	}
+}
+
 func main() {
 	// system := actor.NewActorSystem()
 	// cluster_system = system
@@ -132,6 +162,29 @@ func main() {
 	remoting.Register("ping", actor.PropsFromProducer(func() actor.Actor { return &PingActor{system: system2} }))
 	remoting.Register("consumer", actor.PropsFromProducer(func() actor.Actor { return &ConsumerActor{} }))
 	remoting.Register("state", actor.PropsFromProducer(func() actor.Actor { return &StateActor{} }))
+
+
+  // START OF SECTOR
+  // for test purposes only for now, actor needs to be spawned elsewhere
+	props := actor.PropsFromProducer(func() actor.Actor { return &SupplierActor{} })
+	pid := system2.Root.Spawn(props)
+	spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8093", "sup", "supplier", 10*time.Second)
+	system2.Root.Send(spawnResponse.Pid, &messages.GetItems{
+		Items: []*messages.Item{
+			{
+				ItemId: "123",
+				Amount: 2,
+			},
+			{
+				ItemId: "442",
+				Amount: 4,
+			},
+		},
+		TransactionId: uuid.NewString(),
+    Sender: pid,
+	})
+   // END OF SECTOR
+
 
 	ping2Prop := actor.PropsFromProducer(func() actor.Actor {
 		return &PingActor2{
