@@ -21,7 +21,7 @@ func (state *SimulationActor) Receive(context actor.Context) {
   switch msg := context.Message().(type) {
 	case *messages.Simulate:
 		fmt.Println("Starting simulation")
-		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8091", "consumer-state", "state", 5*time.Second)
+		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8091", "state", "state", 5*time.Second)
     context.Send(spawnResponse.Pid, &messages.GetAllProductsState{})
 		
     // or some random value to start simulations

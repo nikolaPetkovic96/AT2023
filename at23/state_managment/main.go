@@ -21,7 +21,7 @@ func (state *ClockActor) Receive(context actor.Context) {
 	case *messages.ClockPing:
 		fmt.Println("Clock cycle..")
    
-    spawnedPid, _ := remoting.SpawnNamed("127.0.0.1:8091", "consumer-state", "state", 5*time.Second)
+    spawnedPid, _ := remoting.SpawnNamed("127.0.0.1:8091", "state", "state", 5*time.Second)
     context.Send(spawnedPid.Pid, &messages.ClockPing{})
 
 
