@@ -21,9 +21,8 @@ func (state *ClockActor) Receive(context actor.Context) {
 	case *messages.ClockPing:
 		fmt.Println("Clock cycle..")
    
-    stateProps := actor.PropsFromProducer(func() actor.Actor { return &StateManagmentActor{} })
-		statePID, _ := context.SpawnNamed(stateProps, "state")
-		context.Send(statePID, &messages.ClockPing{})
+    spawnedPid, _ := remoting.SpawnNamed("127.0.0.1:8091", "consumer-state", "state", 5*time.Second)
+    context.Send(spawnedPid.Pid, &messages.ClockPing{})
 
 
 		// or some random value to start simulations
@@ -35,16 +34,6 @@ func (state *ClockActor) Receive(context actor.Context) {
 }
 
 func (state *StateManagmentActor) Receive(context actor.Context) {
-  // items := []*messages.Item{
-		// 		{
-		// 			ItemId: "123",
-		// 			Amount: 2,
-		// 		},
-		// 		{
-		// 			ItemId: "442",
-		// 			Amount: 4,
-		// 		},
-		// 	}
 	switch msg := context.Message().(type) {
   case *messages.ClockPing:
     fmt.Println("Pulling data..")
