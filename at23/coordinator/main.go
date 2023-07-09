@@ -82,8 +82,8 @@ func (state *ConsumerActor) Receive(context actor.Context) {
   fmt.Println("Got request from a consumer")
   switch msg := context.Message().(type) {
 	case *messages.BuyProduct: 
-    fmt.Println("Requested items:",msg.Stavke)
-    context.Send(msg.Sender, &messages.Ping{})	
+    fmt.Println("Requested items:",msg.Items)
+    context.Send(msg.Sender, &messages.CompletedTransaction{TransactionId: msg.TransactionId})	
   }
 }
 
