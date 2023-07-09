@@ -11,7 +11,7 @@ import (
 )
 
 type StateManagmentActor struct {
-  items []*messages.Item
+	items []*messages.Item
 }
 type ClockActor struct {
 }
@@ -20,38 +20,36 @@ func (state *ClockActor) Receive(context actor.Context) {
 	switch context.Message().(type) {
 	case *messages.ClockPing:
 		fmt.Println("Clock cycle..")
-   
-    spawnedPid, _ := remoting.SpawnNamed("127.0.0.1:8091", "state", "state", 5*time.Second)
-    context.Send(spawnedPid.Pid, &messages.ClockPing{})
 
+		spawnedPid, _ := remoting.SpawnNamed("127.0.0.1:8091", "state", "state", 5*time.Second)
+		context.Send(spawnedPid.Pid, &messages.ClockPing{})
 
 		// or some random value to start simulations
-    time.AfterFunc(10 * time.Second, func() {
-      context.Send(context.Self(), &messages.ClockPing{})
-    })
+		time.AfterFunc(10*time.Second, func() {
+			context.Send(context.Self(), &messages.ClockPing{})
+		})
 	}
 
 }
 
 func (state *StateManagmentActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
-  case *messages.ClockPing:
-    fmt.Println("Pulling data..")
-	  spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8080", "state-distributor", "state", 10*time.Second)
+	case *messages.ClockPing:
+		fmt.Println("Pulling data..")
+		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8080", "state-distributor", "state", 10*time.Second)
 		context.Send(spawnResponse.Pid, &messages.GetAllProductsState{Sender: context.Self()})
-    fmt.Println(state.items)
+		fmt.Println(state.items)
 	case *messages.GetAllProductsState:
 		fmt.Println("Transaction completed!")
-    spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8090", "state-consumer", "simulation", 10*time.Second)
+		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8090", "state-consumer", "simulation", 10*time.Second)
 		context.Send(spawnResponse.Pid, &messages.ReturnAllProductsState{Items: state.items})
 	case *messages.ReturnAllProductsState:
 		fmt.Println("Got items!", msg.Items)
-	  state.items = msg.Items	
+		state.items = msg.Items
 	}
 }
 
 var remoting *remote.Remote
-
 
 func main() {
 	system := actor.NewActorSystem()

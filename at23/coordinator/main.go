@@ -27,7 +27,6 @@ var cluster_system *actor.ActorSystem
 var skladista_clusteri []cluster.Cluster
 var remoting *remote.Remote
 
-
 type PingActor struct {
 	system *actor.ActorSystem
 }
@@ -92,7 +91,7 @@ func (state *ConsumerActor) Receive(context actor.Context) {
 }
 
 func (state *StateActor) Receive(context actor.Context) {
-  switch msg := context.Message().(type) {
+	switch msg := context.Message().(type) {
 	case *messages.GetAllProductsState:
 		fmt.Println("Pulling data..")
 		// TODO write code that pulls all items from databases and sums them up
@@ -111,7 +110,6 @@ func (state *StateActor) Receive(context actor.Context) {
 
 	}
 }
-
 
 func main() {
 	// system := actor.NewActorSystem()

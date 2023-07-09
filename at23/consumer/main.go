@@ -18,16 +18,16 @@ type SimulationActor struct {
 }
 
 func (state *SimulationActor) Receive(context actor.Context) {
-  switch msg := context.Message().(type) {
+	switch msg := context.Message().(type) {
 	case *messages.Simulate:
 		fmt.Println("Starting simulation")
 		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8091", "state", "state", 5*time.Second)
-    context.Send(spawnResponse.Pid, &messages.GetAllProductsState{})
-		
-    // or some random value to start simulations
-		time.AfterFunc(10 * time.Second, func() {
-      context.Send(context.Self(), &messages.Simulate{})
-    })
+		context.Send(spawnResponse.Pid, &messages.GetAllProductsState{})
+
+		// or some random value to start simulations
+		time.AfterFunc(10*time.Second, func() {
+			context.Send(context.Self(), &messages.Simulate{})
+		})
 	case *messages.ReturnAllProductsState:
 		//code to send message
 		// TODO get random products from state managment
@@ -62,14 +62,12 @@ func main() {
 	remoting = remote.NewRemote(system, remoteConfig)
 	remoting.Start()
 	context := system.Root
-	
+
 	remoting.Register("simulation", actor.PropsFromProducer(func() actor.Actor { return &SimulationActor{} }))
 
-  props := actor.PropsFromProducer(func() actor.Actor { return &SimulationActor{} })
+	props := actor.PropsFromProducer(func() actor.Actor { return &SimulationActor{} })
 	pid := context.Spawn(props)
 	message := &messages.Simulate{}
-
-  
 
 	context.ActorSystem().Root.Send(pid, message)
 
