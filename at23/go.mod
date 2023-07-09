@@ -6,6 +6,12 @@ go 1.20
 require github.com/asynkron/protoactor-go v0.0.0-20230703103118-df5e4f42621c
 
 require (
+	go.mongodb.org/mongo-driver v1.12.0
+	google.golang.org/grpc v1.52.3
+	google.golang.org/protobuf v1.30.0
+)
+
+require (
 	github.com/Workiva/go-datastructures v1.0.53 // indirect
 	github.com/asynkron/goconsole v0.0.0-20160504192649-bfa12eebf716 // indirect
 	github.com/asynkron/gofun v0.0.0-20220329210725-34fed760f4c2 // indirect
@@ -38,7 +44,6 @@ require (
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
-	go.mongodb.org/mongo-driver v1.12.0 // indirect
 	go.opentelemetry.io/otel v1.12.0 // indirect
 	go.opentelemetry.io/otel/exporters/prometheus v0.35.0 // indirect
 	go.opentelemetry.io/otel/metric v0.35.0 // indirect
@@ -52,6 +57,4 @@ require (
 	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
 	google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6 // indirect
-	google.golang.org/grpc v1.52.3 // indirect
-	google.golang.org/protobuf v1.30.0 // indirect
 )
