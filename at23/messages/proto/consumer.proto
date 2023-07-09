@@ -8,23 +8,22 @@ message Simulate{
 }
 
 message StartSimulation{
-  repeated Item items = 1; 
+  repeated Item Items = 1; 
 }
 
 
 message Item{
-    string item_id = 1;
-    int32 amount = 2;
+    string ItemId = 1;
+    int32 Amount = 2;
 }
 
 message BuyProduct{
-    string transaction_id = 1; 
-    repeated Item items = 2;
+    string TransactionId = 1; 
+    repeated Item Items = 2;
     actor.PID Sender = 3;
 }
 
 message CompletedTransaction{
-   string transaction_id = 1; 
-
+   string TransactionId = 1; 
 }
 

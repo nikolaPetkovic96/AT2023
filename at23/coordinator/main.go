@@ -25,6 +25,8 @@ const (
 var skladista []string
 var cluster_system *actor.ActorSystem
 var skladista_clusteri []cluster.Cluster
+var remoting *remote.Remote
+
 
 type PingActor struct {
 	system *actor.ActorSystem
@@ -33,6 +35,8 @@ type PingActor2 struct {
 	system *actor.ActorSystem
 }
 type ConsumerActor struct {
+}
+type StateActor struct {
 }
 
 func (p *PingActor2) Receive(ctx actor.Context) {
@@ -79,13 +83,35 @@ func (state *PingActor) Receive(context actor.Context) {
 }
 
 func (state *ConsumerActor) Receive(context actor.Context) {
-  fmt.Println("Got request from a consumer")
-  switch msg := context.Message().(type) {
-	case *messages.BuyProduct: 
-    fmt.Println("Requested items:",msg.Items)
-    context.Send(msg.Sender, &messages.CompletedTransaction{TransactionId: msg.TransactionId})	
-  }
+	fmt.Println("Got request from a consumer")
+	switch msg := context.Message().(type) {
+	case *messages.BuyProduct:
+		fmt.Println("Requested items:", msg.Items)
+		context.Send(msg.Sender, &messages.CompletedTransaction{TransactionId: msg.TransactionId})
+	}
 }
+
+func (state *StateActor) Receive(context actor.Context) {
+  switch msg := context.Message().(type) {
+	case *messages.GetAllProductsState:
+		fmt.Println("Pulling data..")
+		// TODO write code that pulls all items from databases and sums them up
+		context.Send(msg.Sender, &messages.ReturnAllProductsState{
+			Items: []*messages.Item{
+				{
+					ItemId: "123",
+					Amount: 2,
+				},
+				{
+					ItemId: "442",
+					Amount: 4,
+				},
+			},
+		})
+
+	}
+}
+
 
 func main() {
 	// system := actor.NewActorSystem()
@@ -106,7 +132,8 @@ func main() {
 
 	// //registracija agenta kojem ce se clusteri obracati pri inicijalizaciji
 	remoting.Register("ping", actor.PropsFromProducer(func() actor.Actor { return &PingActor{system: system2} }))
-  remoting.Register("consumer", actor.PropsFromProducer(func() actor.Actor {return &ConsumerActor{}}))
+	remoting.Register("consumer", actor.PropsFromProducer(func() actor.Actor { return &ConsumerActor{} }))
+	remoting.Register("state", actor.PropsFromProducer(func() actor.Actor { return &StateActor{} }))
 
 	ping2Prop := actor.PropsFromProducer(func() actor.Actor {
 		return &PingActor2{

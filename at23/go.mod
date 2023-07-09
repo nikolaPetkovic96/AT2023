@@ -6,6 +6,8 @@ go 1.20
 require github.com/asynkron/protoactor-go v0.0.0-20230703103118-df5e4f42621c
 
 require (
+	github.com/asynkron/goconsole v0.0.0-20160504192649-bfa12eebf716
+	github.com/google/uuid v1.3.0
 	go.mongodb.org/mongo-driver v1.12.0
 	google.golang.org/grpc v1.52.3
 	google.golang.org/protobuf v1.30.0
@@ -13,7 +15,6 @@ require (
 
 require (
 	github.com/Workiva/go-datastructures v1.0.53 // indirect
-	github.com/asynkron/goconsole v0.0.0-20160504192649-bfa12eebf716 // indirect
 	github.com/asynkron/gofun v0.0.0-20220329210725-34fed760f4c2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
@@ -23,7 +24,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/labstack/echo v3.3.10+incompatible // indirect
 	github.com/labstack/gommon v0.3.1 // indirect
