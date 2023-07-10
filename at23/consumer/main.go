@@ -3,6 +3,7 @@ package main
 import (
 	"at23/messages"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,10 +31,9 @@ func (state *SimulationActor) Receive(context actor.Context) {
 		})
 	case *messages.ReturnAllProductsState:
 		//code to send message
-		// TODO get random products from state managment
 		consumerProps := actor.PropsFromProducer(func() actor.Actor { return &ConsumerActor{} })
 		consumerPID := context.Spawn(consumerProps)
-		context.Send(consumerPID, &messages.StartSimulation{Items: msg.Items})
+		context.Send(consumerPID, &messages.StartSimulation{Items: PickRandomItems(msg.Items)})
 	}
 
 }
@@ -72,4 +72,19 @@ func main() {
 	context.ActorSystem().Root.Send(pid, message)
 
 	console.ReadLine()
+}
+
+func PickRandomItems(items []*messages.Item) []*messages.Item {
+	var new_items []*messages.Item
+	for _, element := range items {
+		if randInt(0, 2) == 1 {
+			amount := randInt(1, int(element.Amount)+1)
+			new_items = append(new_items, &messages.Item{ItemId: element.ItemId, Amount: int32(amount)})
+		}
+	}
+	return new_items
+}
+
+func randInt(min int, max int) int {
+	return min + rand.Intn(max-min)
 }
