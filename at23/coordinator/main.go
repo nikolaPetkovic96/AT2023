@@ -29,6 +29,8 @@ var cluster_system *actor.ActorSystem
 var skladista_clusteri []cluster.Cluster
 var remoting *remote.Remote
 
+var suppliers []string
+
 type PingActor struct {
 	system *actor.ActorSystem
 }
@@ -41,6 +43,8 @@ type ConsumerActor struct {
 type StateActor struct {
 }
 type SupplierActor struct {
+}
+type SupplierRegisterActor struct {
 }
 
 func (p *PingActor2) Receive(ctx actor.Context) {
@@ -183,7 +187,15 @@ func (state *SupplierActor) Receive(context actor.Context) {
 		})
 	case *messages.ReturnItems:
 		fmt.Println("GOT ITEMS BACK! YAY!", msg.Items, msg.TransactionId)
+	}
+}
 
+// Register Suppliers
+func (state SupplierRegisterActor) Receive(context actor.Context) {
+	switch msg := context.Message().(type) {
+	case *messages.RegisterSupplier:
+		suppliers = append(suppliers, msg.Address)
+    fmt.Println(msg.Address)
 	}
 }
 
@@ -208,6 +220,7 @@ func main() {
 	remoting.Register("ping", actor.PropsFromProducer(func() actor.Actor { return &PingActor{system: system2} }))
 	remoting.Register("consumer", actor.PropsFromProducer(func() actor.Actor { return &ConsumerActor{} }))
 	remoting.Register("state", actor.PropsFromProducer(func() actor.Actor { return &StateActor{} }))
+	remoting.Register("supplier-register", actor.PropsFromProducer(func() actor.Actor { return &SupplierRegisterActor{} }))
 
 	// START OF SECTOR
 	// for test purposes only for now, actor needs to be spawned elsewhere
