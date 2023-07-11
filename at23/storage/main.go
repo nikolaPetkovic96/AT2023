@@ -47,6 +47,7 @@ func (*KupacActor) Receive(context actor.Context) {
 				porucenaKol = 0
 				//obavesti storage aktora da smo pri kraju sa zalihama za trazeni proizvod
 				//proceni
+				porucenaKol = mongo.ProceniPotrebnuKolicinu(artikal.ItemId)
 				//sacuvaj porudzenicu
 				//posalji zahtev
 			}

@@ -162,14 +162,40 @@ type Transakcija struct {
 	Cena          int
 }
 
-func ProceniPotrebnuKolicinu(identifikator string) (potrebno int) {
+func ProceniPotrebnuKolicinu(identifikator string) (potrebno int32) {
 	//proveri porudzbine za identifkator u zadnjem periodu(npr 2min),
 	//sumiraj i vrati tu kolicinu * 1.2 (Poruci 20 posto vise )
-	return 0
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		os.Exit(1)
+	}
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	col := client.Database("golang_master").Collection("Transakcija")
+	filter := bson.M{"idartikla": identifikator, "vreme": bson.M{"$gt": time.Now().Add(-time.Hour * 20)}}
+	cur, err := col.Find(ctx, filter)
+	var transakcije []Transakcija
+	for cur.Next(ctx) {
+		var transakcija Transakcija
+		cur.Decode(&transakcija)
+		transakcije = append(transakcije, transakcija)
+	}
+	potrebno = 0
+	if len(transakcije) != 0 {
+		for _, trans := range transakcije {
+			potrebno += int32(trans.Kolicina)
+		}
+		potrebno += potrebno / 5
+		fmt.Println("POTREBNO JE ", potrebno, "ARTIKALA SA IDENTIFIKATOROM", identifikator)
+
+	}
+	return potrebno
 }
 
-func SacuvajPorudzbinuPoslatuSupplieru(identifikator string, kolcicina int) {
+// salje suplijeru
+func SacuvajPorudzbinu(identifikator string, kolcicina int) {
 	//sacuvati u posebnu kolekciju, tip PotrebanProizvod, dodati sadasnji trenutak i status poruceno
+
 }
 
 type Status int
@@ -179,11 +205,11 @@ const (
 	Zavrseno
 )
 
-type PotrebanProizvod struct {
-	identifikator string
-	kolicina      int
-	status        Status
-	time          time.Time
+type Porudzbina struct {
+	Identifikator string
+	Kolicina      int
+	Status        Status
+	Time          time.Time
 }
 
 func SacuvajDostavuOdSuppliera(dostava *messages.DostavaOdSuppliera) {
