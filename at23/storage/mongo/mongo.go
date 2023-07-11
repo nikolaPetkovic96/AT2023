@@ -117,13 +117,6 @@ func KupiArtikal(artikal *messages.Item) (identifikator string, uspesnoKupljen b
 		fmt.Println("IDENTIFIKATOR", artikal.ItemId, "NE POSTOJI")
 		return "none", false
 	}
-	//zeljenaKolicina := artikal.Amount
-	//trazeniArtikal := artikal.ItemId
-	//proveri da li ima potreben kolicine u skladistu za trazeniArtikal, mozes iskoristiti funkciju iznad, ako ima
-	//ako ima, smanji kolicinu u bazi, (vidi na liniji 60-61)
-	//vrati identifikator i true/false, zavisno da li je uspesno smanjena kolicina proizvoda
-
-	//return "temp", false
 }
 func SacuvajTransakciju(artikal *messages.Item) {
 	//cuvanje porudzbine koja je obradjena uspesno za consumera
@@ -238,4 +231,66 @@ type Porudzbina struct {
 
 func SacuvajDostavuOdSuppliera(dostava *messages.DostavaOdSuppliera) {
 	//sacivati u posebnu kolekciju dostavu, preuzeti listu stavki, naziv skladista, i dodati trenutni datum- datum isporuke
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		os.Exit(1)
+	}
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	col := client.Database("golang_master").Collection("Dostava")
+
+	var proizvodi []Proizvod
+	for _, dost := range dostava.Stavke {
+		var proizvod = Proizvod{
+			Identifikator: dost.Identifikator,
+			Kolicina:      int(dost.Kolcicina),
+			//Cena:          dost.Cena,
+		}
+		NabaviArtikal(&messages.Item{ItemId: proizvod.Identifikator, Amount: int32(proizvod.Kolicina)})
+		proizvodi = append(proizvodi, proizvod)
+	}
+
+	var oneDoc = Dostava{
+		Supplier_id:     dostava.SupplierId,
+		Naziv_skladista: dostava.NazivSkladista,
+		Proizvodi:       proizvodi,
+	}
+	_, insertErr := col.InsertOne(ctx, oneDoc)
+	if insertErr != nil {
+		fmt.Println("NIJE USPESNO SACUVANO")
+		os.Exit(1)
+	}
+	fmt.Println("DOSTAVA USPESNO SACUVANA")
+	fmt.Println(oneDoc)
+}
+
+type Dostava struct {
+	Supplier_id     string
+	Naziv_skladista string
+	Proizvodi       []Proizvod
+}
+
+func NabaviArtikal(artikal *messages.Item) {
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		os.Exit(1)
+	}
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	col := client.Database("golang_master").Collection("Proizvodi")
+	filter := bson.M{"identifikator": artikal.ItemId}
+	var pr Proizvod
+	count, err := col.CountDocuments(context.TODO(), filter)
+	if count == 1 {
+		col.FindOne(ctx, filter).Decode(&pr)
+		update := bson.M{"$inc": bson.M{"kolicina": artikal.Amount}}
+		col.FindOneAndUpdate(ctx, filter, update)
+		var updatedPr Proizvod
+		col.FindOne(ctx, filter).Decode(&updatedPr)
+		fmt.Println("USPESNO POVECANA KOLICINA ARTIKLA", artikal.ItemId, "ZA", artikal.Amount)
+		return
+	} else {
+		fmt.Println("IDENTIFIKATOR", artikal.ItemId, "NE POSTOJI")
+		return
+	}
 }
