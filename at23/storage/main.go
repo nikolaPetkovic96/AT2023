@@ -42,11 +42,15 @@ func (*KupacActor) Receive(context actor.Context) {
 			var porucenaKol int32
 			if kupljeno {
 				porucenaKol = artikal.Amount
-				//mongo.sacuvajPorudzbinu(msg)
+				mongo.SacuvajTransakciju(artikal)
 			} else {
 				porucenaKol = 0
 				//obavesti storage aktora da smo pri kraju sa zalihama za trazeni proizvod
-
+				//proceni
+				porucenaKol = mongo.ProceniPotrebnuKolicinu(artikal.ItemId)
+				//sacuvaj porudzbenicu
+				mongo.SacuvajPorudzbinu(artikal.ItemId, porucenaKol)
+				//posalji zahtev
 			}
 			context.Respond(&messages.ArtikalPorucen{
 				TransactionId:  msg.TransactionId,
