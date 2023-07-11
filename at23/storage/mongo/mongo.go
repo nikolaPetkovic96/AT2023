@@ -138,7 +138,7 @@ func SacuvajTransakciju(artikal *messages.Item) {
 	oneDoc := Transakcija{
 		TransactionId: uuid.NewString(),
 		IdArtikla:     artikal.ItemId,
-		Kolicina:      int(artikal.Amount),
+		Kolicina:      artikal.Amount,
 		Vreme:         time.Now(),
 		Cena:          0,
 		//ovde promeni cenu kada namestis cenu u proizvodima
@@ -157,7 +157,7 @@ type Transakcija struct {
 	//todo
 	TransactionId string
 	IdArtikla     string
-	Kolicina      int
+	Kolicina      int32
 	Vreme         time.Time
 	Cena          int
 }
@@ -183,7 +183,7 @@ func ProceniPotrebnuKolicinu(identifikator string) (potrebno int32) {
 	potrebno = 0
 	if len(transakcije) != 0 {
 		for _, trans := range transakcije {
-			potrebno += int32(trans.Kolicina)
+			potrebno += trans.Kolicina
 		}
 		potrebno += potrebno / 5
 		fmt.Println("POTREBNO JE ", potrebno, "ARTIKALA SA IDENTIFIKATOROM", identifikator)
@@ -193,9 +193,32 @@ func ProceniPotrebnuKolicinu(identifikator string) (potrebno int32) {
 }
 
 // salje suplijeru
-func SacuvajPorudzbinu(identifikator string, kolcicina int) {
+func SacuvajPorudzbinu(identifikator string, kolicina int32) {
 	//sacuvati u posebnu kolekciju, tip PotrebanProizvod, dodati sadasnji trenutak i status poruceno
-
+	if kolicina == 0 {
+		return
+	}
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		os.Exit(1)
+	}
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	col := client.Database("golang_master").Collection("Porudzbina")
+	oneDoc := Porudzbina{
+		Identifikator: uuid.NewString(),
+		IdArtikla:     identifikator,
+		Kolicina:      kolicina,
+		Vreme:         time.Now(),
+		Status:        Poruceno,
+	}
+	_, insertErr := col.InsertOne(ctx, oneDoc)
+	if insertErr != nil {
+		fmt.Println("PORUDZBINA NIJE USPESNO SACUVANO")
+		os.Exit(1)
+	}
+	fmt.Println("PORUCENO JE ", kolicina, "ARTIKALA SA IDENTIFIKATOROM", identifikator)
+	fmt.Println(oneDoc)
 }
 
 type Status int
@@ -207,9 +230,10 @@ const (
 
 type Porudzbina struct {
 	Identifikator string
-	Kolicina      int
+	IdArtikla     string
+	Kolicina      int32
 	Status        Status
-	Time          time.Time
+	Vreme         time.Time
 }
 
 func SacuvajDostavuOdSuppliera(dostava *messages.DostavaOdSuppliera) {
