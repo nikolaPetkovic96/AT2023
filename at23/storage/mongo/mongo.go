@@ -86,13 +86,44 @@ func ProveriKolicine(artikal string) (kol int) {
 }
 
 func KupiArtikal(artikal *messages.Item) (identifikator string, uspesnoKupljen bool) {
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		os.Exit(1)
+	}
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	col := client.Database("golang_master").Collection("Proizvodi")
+	filter := bson.M{"identifikator": artikal.ItemId}
+	var pr Proizvod
+	count, err := col.CountDocuments(context.TODO(), filter)
+	if count == 1 {
+		col.FindOne(ctx, filter).Decode(&pr)
+		fmt.Println("PRONADJENA KOL:", pr.Kolicina)
+		fmt.Println("POTREBNA KOL:", artikal.Amount)
+
+		if pr.Kolicina < int(artikal.Amount) {
+			fmt.Println("NEDOVOLJNA KOL")
+			return pr.Identifikator, false
+		}
+		update := bson.M{"$inc": bson.M{"kolicina": -artikal.Amount}}
+		col.FindOneAndUpdate(ctx, filter, update)
+
+		var updatedPr Proizvod
+		col.FindOne(ctx, filter).Decode(&updatedPr)
+		fmt.Println("SADASNJA KOL:", updatedPr.Kolicina)
+
+		return pr.Identifikator, true
+	} else {
+		fmt.Println("IDENTIFIKATOR", artikal.ItemId, "NE POSTOJI")
+		return "none", false
+	}
 	//zeljenaKolicina := artikal.Amount
 	//trazeniArtikal := artikal.ItemId
 	//proveri da li ima potreben kolicine u skladistu za trazeniArtikal, mozes iskoristiti funkciju iznad, ako ima
 	//ako ima, smanji kolicinu u bazi, (vidi na liniji 60-61)
 	//vrati identifikator i true/false, zavisno da li je uspesno smanjena kolicina proizvoda
 
-	return "temp", false
+	//return "temp", false
 }
 func sacuvajPorudzbinu(*messages.BuyProduct) { //cuvanje porudzbine koja je obradjena uspesno za consumera
 	//sacuvaj porudzbinu(transactionId, id artikla, kolicina, ) + datum ,moze trenutni moment

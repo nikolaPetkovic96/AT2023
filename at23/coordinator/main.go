@@ -220,7 +220,7 @@ func main() {
 	system2.Root.Send(KupacPid, &messages.BuyProduct{
 		Sender:        KupacPid,
 		TransactionId: "1",
-		Items:         []*messages.Item{{ItemId: "1", Amount: 2}, {ItemId: "2", Amount: 2}},
+		Items:         []*messages.Item{{ItemId: "1", Amount: 2000}, {ItemId: "1", Amount: 20}, {ItemId: "42", Amount: 2000}, {ItemId: "2", Amount: 2}},
 	})
 	//////////kraj test slanje zahteva na storage
 	//
