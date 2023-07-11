@@ -137,7 +137,35 @@ func (state *SupplierActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
 	// maybe remove this case in future
 	case *messages.GetItems:
-		fmt.Println("Pulling data..")
+
+		// check prices first
+		spawnResponse1, _ := remoting.SpawnNamed("127.0.0.1:8093", "sup", "supplier", 10*time.Second)
+		future := context.RequestFuture(spawnResponse1.Pid, &messages.CheckPrice{
+			Items: []*messages.Item{
+				{
+					ItemId: "123",
+					Amount: 2,
+				},
+				{
+					ItemId: "442",
+					Amount: 4,
+				},
+			},
+			Sender: context.Self(),
+		}, 10*time.Second)
+		response, err := future.Result()
+		if err == nil {
+			price, ok := response.(*messages.ReturnPrice)
+			if ok {
+				// Access the data in MyMessage
+				fmt.Println("Response:", price.Price)
+			} else {
+				fmt.Println("Unexpected response type")
+			}
+		} else {
+			fmt.Println("Error:", err)
+		}
+		// send request to cheapest supplier
 		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8093", "sup", "supplier", 10*time.Second)
 		context.Send(spawnResponse.Pid, &messages.GetItems{
 			Items: []*messages.Item{
