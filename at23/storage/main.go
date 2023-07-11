@@ -89,6 +89,14 @@ func (*StorageActor) Receive(context actor.Context) {
 			mongo.DodajAritkal(mongo.Proizvod{Identifikator: item.Identifikator, Kolicina: int(item.Kolcicina)})
 			mongo.SacuvajDostavuOdSuppliera(msg)
 		}
+	case *messages.GetAllProductsState:
+		fmt.Println("Provera ukupne kolicine:")
+		getAll := mongo.GetAllProducts()
+		fmt.Println("Pronadjeni artikli:", getAll)
+		context.Respond(&messages.ReturnAllProductsState{
+			Items: getAll,
+		})
+
 	}
 }
 

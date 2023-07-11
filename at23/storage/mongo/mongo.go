@@ -4,9 +4,10 @@ import (
 	"at23/messages"
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"os"
 	"time"
+
+	"github.com/google/uuid"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -293,4 +294,26 @@ func NabaviArtikal(artikal *messages.Item) {
 		fmt.Println("IDENTIFIKATOR", artikal.ItemId, "NE POSTOJI")
 		return
 	}
+}
+
+func GetAllProducts() (items []*messages.Item) {
+	var retValue []Proizvod
+	var retPointers []*messages.Item
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		os.Exit(1)
+	}
+	//ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	col := client.Database("golang_master").Collection("Proizvodi")
+	cursor, _ := col.Find(context.TODO(), bson.D{{}})
+	if err = cursor.All(context.TODO(), &retValue); err != nil {
+		panic(err)
+	}
+	for _, r := range retValue {
+		retPointers = append(retPointers, &messages.Item{ItemId: r.Identifikator, Amount: int32(r.Kolicina)})
+	}
+	fmt.Println("Ukupno razlicitih proizvoda", len(retPointers))
+	return retPointers
+
 }
