@@ -25,6 +25,59 @@ var port2 int
 type PingPongActor struct {
 	system *actor.ActorSystem
 }
+type KupacActor struct {
+	system *actor.ActorSystem
+}
+type StorageActor struct {
+	system *actor.ActorSystem
+}
+
+func (*KupacActor) Receive(context actor.Context) {
+	fmt.Println("Actor kupca pogodjen:")
+	switch msg := context.Message().(type) {
+	case *messages.BuyProduct: //
+		//msg.Items je lista ali pretpostavi da ima jedan clan
+		for _, artikal := range msg.Items {
+			_, kupljeno := mongo.KupiArtikal(artikal)
+			var porucenaKol int32
+			if kupljeno {
+				porucenaKol = artikal.Amount
+				//mongo.sacuvajPorudzbinu(msg)
+			} else {
+				porucenaKol = 0
+				//obavesti storage aktora da smo pri kraju sa zalihama za trazeni proizvod
+
+			}
+			context.Respond(&messages.ArtikalPorucen{
+				TransactionId:  msg.TransactionId,
+				Nazivskladista: naziv_skladista,
+				Identifikator:  artikal.ItemId,
+				Kolicina:       porucenaKol,
+			})
+		}
+	}
+}
+func (*StorageActor) Receive(context actor.Context) {
+	fmt.Println("Actor Storage pogodjen:")
+	switch msg := context.Message().(type) {
+	case *messages.BuyProduct: //Storage actor proveri da li ima potrebnih kolicina i vrati kolicinu za trazene artikle u skladistu
+		fmt.Println("Provera prozizvoda u skladistu :", naziv_skladista)
+		for _, artikal := range msg.Items {
+			artikal.Amount = int32(mongo.ProveriKolicine(artikal.ItemId))
+			fmt.Println("Pronadjena kolicina za id:", artikal.ItemId, "=", artikal.Amount)
+		}
+		time.Sleep(3 * time.Second)
+		context.Respond(msg)
+
+	case string:
+		{ //pogadjace se iz 48. linije, pocinje forimranje zahteva koji treba poslati supplieru
+			//identifikator := msg
+			//probaj napraviti metodu koja ce za identifikator proveriti koliko je prodato komada u nekom zadnjem periodu(1min-2)
+			//pa na osnovu toga sracunati
+
+		}
+	}
+}
 
 // po pravilu bi trebao biti definsian endpoint ali spolja se uglavnom gadja odrejedni Kind agenta
 func (*PingPongActor) PingStorage(r *messages.Ping) *messages.Pong {
@@ -64,7 +117,9 @@ func main() {
 	provider := automanaged.NewWithConfig(1*time.Second, port2, "localhost"+":"+strconv.Itoa(port2))
 	lookup := disthash.New()
 	clusterKinds := dodajKindPingPong(system)
-	clusterConfig := cluster.Configure(naziv_skladista, provider, lookup, config, cluster.WithKinds(&clusterKinds))
+	KupacKind := dodajKindKupacActor(system)
+	StorageKind := dodajKindStorageActor(system)
+	clusterConfig := cluster.Configure(naziv_skladista, provider, lookup, config, cluster.WithKinds(&clusterKinds, &KupacKind, &StorageKind))
 	c := cluster.New(system, clusterConfig)
 	c.StartMember()
 	defer c.Shutdown(false)
@@ -92,7 +147,6 @@ func main() {
 	finish := make(chan os.Signal, 1)
 	signal.Notify(finish, os.Interrupt, os.Kill)
 	<-finish
-
 }
 
 func dodajKindPingPong(system *actor.ActorSystem) cluster.Kind {
@@ -101,6 +155,28 @@ func dodajKindPingPong(system *actor.ActorSystem) cluster.Kind {
 		"Pingpong",
 		actor.PropsFromProducer(func() actor.Actor {
 			return &PingPongActor{
+				system: system,
+			}
+		}))
+	return *kindPingPong
+}
+func dodajKindKupacActor(system *actor.ActorSystem) cluster.Kind {
+	fmt.Println("dodajKind")
+	kindPingPong := cluster.NewKind(
+		"Kupac",
+		actor.PropsFromProducer(func() actor.Actor {
+			return &KupacActor{
+				system: system,
+			}
+		}))
+	return *kindPingPong
+}
+func dodajKindStorageActor(system *actor.ActorSystem) cluster.Kind {
+	fmt.Println("dodajKind")
+	kindPingPong := cluster.NewKind(
+		"Storage",
+		actor.PropsFromProducer(func() actor.Actor {
+			return &StorageActor{
 				system: system,
 			}
 		}))
