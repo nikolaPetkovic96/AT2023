@@ -5,6 +5,7 @@ import (
 	mongo "at23/storage/mongo"
 	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"os/signal"
 	"strconv"
@@ -21,6 +22,8 @@ var naziv_skladista string
 var port int
 var adresa string
 var port2 int
+var systemCoordinatorClient *actor.ActorSystem
+var ClusterDist *cluster.Cluster
 
 type PingPongActor struct {
 	system *actor.ActorSystem
@@ -50,7 +53,15 @@ func (*KupacActor) Receive(context actor.Context) {
 				porucenaKol = mongo.ProceniPotrebnuKolicinu(artikal.ItemId)
 				//sacuvaj porudzbenicu
 				mongo.SacuvajPorudzbinu(artikal.ItemId, porucenaKol)
-				//posalji zahtev
+				//posalji zahtev nc cluster
+				grainDist := ClusterDist.Get("dobavljac_"+naziv_skladista, "Dobavljac")
+				context.Send(grainDist, &messages.PorudzbinaZaSuppliera{NazivSkladista: naziv_skladista, Stavke: []*messages.Proizvod{
+					{
+						Identifikator: artikal.ItemId,
+						Kolcicina:     porucenaKol,
+					},
+				},
+				})
 			}
 			context.Respond(&messages.ArtikalPorucen{
 				TransactionId:  msg.TransactionId,
@@ -73,12 +84,10 @@ func (*StorageActor) Receive(context actor.Context) {
 		time.Sleep(3 * time.Second)
 		context.Respond(msg)
 
-	case string:
-		{ //pogadjace se iz 48. linije, pocinje forimranje zahteva koji treba poslati supplieru
-			//identifikator := msg
-			//probaj napraviti metodu koja ce za identifikator proveriti koliko je prodato komada u nekom zadnjem periodu(1min-2)
-			//pa na osnovu toga sracunati
-
+	case *messages.DostavaOdSuppliera: //promenjeno
+		for _, item := range msg.Stavke {
+			mongo.DodajAritkal(mongo.Proizvod{Identifikator: item.Identifikator, Kolicina: int(item.Kolcicina)})
+			mongo.SacuvajDostavuOdSuppliera(msg)
 		}
 	}
 }
@@ -147,6 +156,20 @@ func main() {
 		system.Root.Send(spawnResponse.Pid, &messages.Ping{Ime: naziv_skladista, Adresa: adresa, Port: int32(port), Port2: int32(port2)})
 		break
 	}
+	//prijavi se kao klijent na cooridnatora da bi slao zahteve za suppliere
+	fmt.Println("Prijava skladista na cluster na cooridnaotru")
+	systemCoordClient := actor.NewActorSystem()
+	freePortA, _ := GetFreePort()
+	configCoord := remote.Configure("127.0.0.1", freePortA)
+	freePort, _ := GetFreePort()
+	clusterProvider := automanaged.NewWithConfig(1*time.Second, freePort, "localhost:"+strconv.Itoa(6330))
+	lookupCoord := disthash.New()
+	clusterConfigCoord := cluster.Configure("distributor_cluster", clusterProvider, lookupCoord, configCoord)
+	ClusterDist = cluster.New(systemCoordClient, clusterConfigCoord)
+	ClusterDist.StartClient()
+	defer ClusterDist.Shutdown(false)
+
+	//
 	// Run till a signal comes
 	finish := make(chan os.Signal, 1)
 	signal.Notify(finish, os.Interrupt, os.Kill)
@@ -190,3 +213,17 @@ func dodajKindStorageActor(system *actor.ActorSystem) cluster.Kind {
 const (
 // pingPongAgent = "pingPong_"
 )
+
+func GetFreePort() (int, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		return 0, err
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
