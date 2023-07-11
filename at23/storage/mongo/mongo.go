@@ -4,6 +4,7 @@ import (
 	"at23/messages"
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"os"
 	"time"
 
@@ -107,7 +108,6 @@ func KupiArtikal(artikal *messages.Item) (identifikator string, uspesnoKupljen b
 		}
 		update := bson.M{"$inc": bson.M{"kolicina": -artikal.Amount}}
 		col.FindOneAndUpdate(ctx, filter, update)
-
 		var updatedPr Proizvod
 		col.FindOne(ctx, filter).Decode(&updatedPr)
 		fmt.Println("SADASNJA KOL:", updatedPr.Kolicina)
@@ -125,12 +125,41 @@ func KupiArtikal(artikal *messages.Item) (identifikator string, uspesnoKupljen b
 
 	//return "temp", false
 }
-func sacuvajPorudzbinu(*messages.BuyProduct) { //cuvanje porudzbine koja je obradjena uspesno za consumera
+func SacuvajTransakciju(artikal *messages.Item) {
+	//cuvanje porudzbine koja je obradjena uspesno za consumera
 	//sacuvaj porudzbinu(transactionId, id artikla, kolicina, ) + datum ,moze trenutni moment
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		os.Exit(1)
+	}
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	col := client.Database("golang_master").Collection("Transakcija")
+	oneDoc := Transakcija{
+		TransactionId: uuid.NewString(),
+		IdArtikla:     artikal.ItemId,
+		Kolicina:      int(artikal.Amount),
+		Vreme:         time.Now(),
+		Cena:          0,
+		//ovde promeni cenu kada namestis cenu u proizvodima
+	}
+	_, insertErr := col.InsertOne(ctx, oneDoc)
+	if insertErr != nil {
+		fmt.Println("NIJE USPESNO SACUVANO")
+		os.Exit(1)
+	}
+	fmt.Println("TRANSAKCIJA USPESNO SACUVANA")
+	fmt.Println(oneDoc)
+
 }
 
-type Porudzbina struct {
+type Transakcija struct {
 	//todo
+	TransactionId string
+	IdArtikla     string
+	Kolicina      int
+	Vreme         time.Time
+	Cena          int
 }
 
 func ProceniPotrebnuKolicinu(identifikator string) (potrebno int) {
@@ -143,11 +172,18 @@ func SacuvajPorudzbinuPoslatuSupplieru(identifikator string, kolcicina int) {
 	//sacuvati u posebnu kolekciju, tip PotrebanProizvod, dodati sadasnji trenutak i status poruceno
 }
 
+type Status int
+
+const (
+	Poruceno Status = iota
+	Zavrseno
+)
+
 type PotrebanProizvod struct {
 	identifikator string
 	kolicina      int
-	//dodaj datum
-	//dodaj status, inicjalno poruceno, i moze se promeniti u zavrseno
+	status        Status
+	time          time.Time
 }
 
 func SacuvajDostavuOdSuppliera(dostava *messages.DostavaOdSuppliera) {
