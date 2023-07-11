@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"strconv"
 	"time"
+  "os"
 
 	console "github.com/asynkron/goconsole"
 	"github.com/asynkron/protoactor-go/actor"
@@ -39,9 +40,9 @@ var address string
 
 func main() {
 	system := actor.NewActorSystem()
-	address = "127.0.0.1"
-	port := 8093
-	remoteConfig := remote.Configure(address, port)
+	address = os.Args[1]
+	port, _ := strconv.Atoi(os.Args[2])	
+  remoteConfig := remote.Configure(address, port)
 
 	remoting = remote.NewRemote(system, remoteConfig)
 	remoting.Start()
