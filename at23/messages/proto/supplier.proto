@@ -17,4 +17,16 @@ message ReturnItems{
   string TransactionId = 2;
 }
 
+message CheckPrice{
+  repeated Item Items = 1;
+  actor.PID Sender = 2;
+}
 
+message ReturnPrice{
+  float Price = 1;
+  string Address = 2;
+}
+
+message RegisterSupplier{
+    string Address = 1;
+}

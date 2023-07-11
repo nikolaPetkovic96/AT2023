@@ -3,6 +3,7 @@ package main
 import (
 	"at23/messages"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"os/signal"
@@ -29,6 +30,8 @@ var cluster_system *actor.ActorSystem
 var skladista_clusteri []cluster.Cluster
 var remoting *remote.Remote
 
+var suppliers []string
+
 type PingActor struct {
 	system *actor.ActorSystem
 }
@@ -41,6 +44,8 @@ type ConsumerActor struct {
 type StateActor struct {
 }
 type SupplierActor struct {
+}
+type SupplierRegisterActor struct {
 }
 
 func (p *PingActor2) Receive(ctx actor.Context) {
@@ -137,25 +142,60 @@ func (state *SupplierActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
 	// maybe remove this case in future
 	case *messages.GetItems:
-		fmt.Println("Pulling data..")
-		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8093", "sup", "supplier", 10*time.Second)
+		// check prices first
+		ch := make(chan *actor.Future, len(skladista_clusteri))
+		smallestPrice := math.Inf(1)
+    smallestPriceAddress := ""
+		for _, element := range suppliers {
+			spawnResponse1, _ := remoting.SpawnNamed(element, "sup", "supplier", 10*time.Second)
+			ch <- context.RequestFuture(spawnResponse1.Pid, &messages.CheckPrice{
+				Items:  msg.Items,
+				Sender: context.Self(),
+			}, 10*time.Second)
+		}
+		time.Sleep(15 * time.Second)
+		close(ch)
+		for temp := range ch {
+			result, err := temp.Result()
+			if err != nil {
+				price, ok := result.(*messages.ReturnPrice)
+				if ok {
+					fmt.Println("Response:", price.Address, price.Price)
+					if smallestPrice > float64(price.Price) {
+						smallestPrice = float64(price.Price)
+						smallestPriceAddress = price.Address
+					}
+				} else {
+					fmt.Println("Unexpected response type")
+				}
+			}
+		}
+
+		fmt.Println("Got smallestPrice of", smallestPrice, smallestPriceAddress)
+
+    if smallestPrice == math.Inf(1) || smallestPriceAddress == "" {
+      fmt.Println("Something went wrong, data was corrupted")
+      return
+    }
+
+		// send request to cheapest supplier
+		spawnResponse, _ := remoting.SpawnNamed(smallestPriceAddress, "sup", "supplier", 10*time.Second)
 		context.Send(spawnResponse.Pid, &messages.GetItems{
-			Items: []*messages.Item{
-				{
-					ItemId: "123",
-					Amount: 2,
-				},
-				{
-					ItemId: "442",
-					Amount: 4,
-				},
-			},
+			Items: msg.Items, 
 			TransactionId: uuid.NewString(),
 			Sender:        context.Self(),
 		})
 	case *messages.ReturnItems:
 		fmt.Println("GOT ITEMS BACK! YAY!", msg.Items, msg.TransactionId)
+	}
+}
 
+// Register Suppliers
+func (state SupplierRegisterActor) Receive(context actor.Context) {
+	switch msg := context.Message().(type) {
+	case *messages.RegisterSupplier:
+		suppliers = append(suppliers, msg.Address)
+		fmt.Println(msg.Address)
 	}
 }
 
@@ -180,6 +220,7 @@ func main() {
 	remoting.Register("ping", actor.PropsFromProducer(func() actor.Actor { return &PingActor{system: system2} }))
 	remoting.Register("consumer", actor.PropsFromProducer(func() actor.Actor { return &ConsumerActor{} }))
 	remoting.Register("state", actor.PropsFromProducer(func() actor.Actor { return &StateActor{} }))
+	remoting.Register("supplier-register", actor.PropsFromProducer(func() actor.Actor { return &SupplierRegisterActor{} }))
 
 	// START OF SECTOR
 	// for test purposes only for now, actor needs to be spawned elsewhere
