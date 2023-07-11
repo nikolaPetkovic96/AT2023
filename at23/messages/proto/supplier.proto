@@ -24,6 +24,7 @@ message CheckPrice{
 
 message ReturnPrice{
   float Price = 1;
+  string Address = 2;
 }
 
 message RegisterSupplier{

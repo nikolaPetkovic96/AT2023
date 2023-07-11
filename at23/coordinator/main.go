@@ -3,6 +3,7 @@ package main
 import (
 	"at23/messages"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"os/signal"
@@ -141,47 +142,46 @@ func (state *SupplierActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
 	// maybe remove this case in future
 	case *messages.GetItems:
-
 		// check prices first
-		spawnResponse1, _ := remoting.SpawnNamed("127.0.0.1:8093", "sup", "supplier", 10*time.Second)
-		future := context.RequestFuture(spawnResponse1.Pid, &messages.CheckPrice{
-			Items: []*messages.Item{
-				{
-					ItemId: "123",
-					Amount: 2,
-				},
-				{
-					ItemId: "442",
-					Amount: 4,
-				},
-			},
-			Sender: context.Self(),
-		}, 10*time.Second)
-		response, err := future.Result()
-		if err == nil {
-			price, ok := response.(*messages.ReturnPrice)
-			if ok {
-				// Access the data in MyMessage
-				fmt.Println("Response:", price.Price)
-			} else {
-				fmt.Println("Unexpected response type")
-			}
-		} else {
-			fmt.Println("Error:", err)
+		ch := make(chan *actor.Future, len(skladista_clusteri))
+		smallestPrice := math.Inf(1)
+    smallestPriceAddress := ""
+		for _, element := range suppliers {
+			spawnResponse1, _ := remoting.SpawnNamed(element, "sup", "supplier", 10*time.Second)
+			ch <- context.RequestFuture(spawnResponse1.Pid, &messages.CheckPrice{
+				Items:  msg.Items,
+				Sender: context.Self(),
+			}, 10*time.Second)
 		}
+		time.Sleep(15 * time.Second)
+		close(ch)
+		for temp := range ch {
+			result, err := temp.Result()
+			if err != nil {
+				price, ok := result.(*messages.ReturnPrice)
+				if ok {
+					fmt.Println("Response:", price.Address, price.Price)
+					if smallestPrice > float64(price.Price) {
+						smallestPrice = float64(price.Price)
+						smallestPriceAddress = price.Address
+					}
+				} else {
+					fmt.Println("Unexpected response type")
+				}
+			}
+		}
+
+		fmt.Println("Got smallestPrice of", smallestPrice, smallestPriceAddress)
+
+    if smallestPrice == math.Inf(1) || smallestPriceAddress == "" {
+      fmt.Println("Something went wrong, data was corrupted")
+      return
+    }
+
 		// send request to cheapest supplier
-		spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8093", "sup", "supplier", 10*time.Second)
+		spawnResponse, _ := remoting.SpawnNamed(smallestPriceAddress, "sup", "supplier", 10*time.Second)
 		context.Send(spawnResponse.Pid, &messages.GetItems{
-			Items: []*messages.Item{
-				{
-					ItemId: "123",
-					Amount: 2,
-				},
-				{
-					ItemId: "442",
-					Amount: 4,
-				},
-			},
+			Items: msg.Items, 
 			TransactionId: uuid.NewString(),
 			Sender:        context.Self(),
 		})
@@ -195,7 +195,7 @@ func (state SupplierRegisterActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
 	case *messages.RegisterSupplier:
 		suppliers = append(suppliers, msg.Address)
-    fmt.Println(msg.Address)
+		fmt.Println(msg.Address)
 	}
 }
 
