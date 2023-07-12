@@ -230,43 +230,43 @@ type Porudzbina struct {
 	Vreme         time.Time
 }
 
-func SacuvajDostavuOdSuppliera(dostava *messages.DostavaOdSuppliera) {
-	//sacivati u posebnu kolekciju dostavu, preuzeti listu stavki, naziv skladista, i dodati trenutni datum- datum isporuke
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
-	client, err := mongo.Connect(context.TODO(), clientOptions)
-	if err != nil {
-		os.Exit(1)
-	}
-	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
-	col := client.Database("golang_master").Collection("Dostava")
+// func SacuvajDostavuOdSuppliera(dostava *messages.DostavaOdSuppliera) {
+// 	//sacivati u posebnu kolekciju dostavu, preuzeti listu stavki, naziv skladista, i dodati trenutni datum- datum isporuke
+// 	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+// 	client, err := mongo.Connect(context.TODO(), clientOptions)
+// 	if err != nil {
+// 		os.Exit(1)
+// 	}
+// 	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+// 	col := client.Database("golang_master").Collection("Dostava")
 
-	var proizvodi []Proizvod
-	for _, dost := range dostava.Stavke {
-		var proizvod = Proizvod{
-			Identifikator: dost.Identifikator,
-			Kolicina:      int(dost.Kolcicina),
-			//Cena:          dost.Cena,
-		}
-		NabaviArtikal(&messages.Item{ItemId: proizvod.Identifikator, Amount: int32(proizvod.Kolicina)})
-		proizvodi = append(proizvodi, proizvod)
-	}
+// 	var proizvodi []Proizvod
+// 	for _, dost := range dostava.Stavke {
+// 		var proizvod = Proizvod{
+// 			Identifikator: dost.Identifikator,
+// 			Kolicina:      int(dost.Kolcicina),
+// 			//Cena:          dost.Cena,
+// 		}
+// 		NabaviArtikal(&messages.Item{ItemId: proizvod.Identifikator, Amount: int32(proizvod.Kolicina)})
+// 		proizvodi = append(proizvodi, proizvod)
+// 	}
 
-	var oneDoc = Dostava{
-		Supplier_id:     dostava.SupplierId,
-		Naziv_skladista: dostava.NazivSkladista,
-		Proizvodi:       proizvodi,
-	}
-	_, insertErr := col.InsertOne(ctx, oneDoc)
-	if insertErr != nil {
-		fmt.Println("NIJE USPESNO SACUVANO")
-		os.Exit(1)
-	}
-	fmt.Println("DOSTAVA USPESNO SACUVANA")
-	fmt.Println(oneDoc)
-}
+// 	var oneDoc = Dostava{
+// 		Supplier_id:     dostava.SupplierId,
+// 		Naziv_skladista: dostava.NazivSkladista,
+// 		Proizvodi:       proizvodi,
+// 	}
+// 	_, insertErr := col.InsertOne(ctx, oneDoc)
+// 	if insertErr != nil {
+// 		fmt.Println("NIJE USPESNO SACUVANO")
+// 		os.Exit(1)
+// 	}
+// 	fmt.Println("DOSTAVA USPESNO SACUVANA")
+// 	fmt.Println(oneDoc)
+// }
 
 type Dostava struct {
-	Supplier_id     string
+	//Supplier_id     string
 	Naziv_skladista string
 	Proizvodi       []Proizvod
 }
@@ -316,4 +316,39 @@ func GetAllProducts() (items []*messages.Item) {
 	fmt.Println("Ukupno razlicitih proizvoda", len(retPointers))
 	return retPointers
 
+}
+
+func SacuvajDostavuOdSuppliera(dostava *messages.ReturnItems, skladiste string) {
+	//sacivati u posebnu kolekciju dostavu, preuzeti listu stavki, naziv skladista, i dodati trenutni datum- datum isporuke
+	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		os.Exit(1)
+	}
+	ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	col := client.Database("golang_master").Collection("Dostava")
+
+	var proizvodi []Proizvod
+	for _, dost := range dostava.Items {
+		var proizvod = Proizvod{
+			Identifikator: dost.ItemId,
+			Kolicina:      int(dost.Amount),
+			//Cena:          dost.Cena,
+		}
+		NabaviArtikal(&messages.Item{ItemId: proizvod.Identifikator, Amount: int32(proizvod.Kolicina)})
+		proizvodi = append(proizvodi, proizvod)
+	}
+
+	var oneDoc = Dostava{
+		//Supplier_id:     dostava.SupplierId,
+		Naziv_skladista: skladiste,
+		Proizvodi:       proizvodi,
+	}
+	_, insertErr := col.InsertOne(ctx, oneDoc)
+	if insertErr != nil {
+		fmt.Println("NIJE USPESNO SACUVANO")
+		os.Exit(1)
+	}
+	fmt.Println("DOSTAVA USPESNO SACUVANA")
+	fmt.Println(oneDoc)
 }

@@ -10,11 +10,13 @@ message GetItems{
   repeated Item Items = 1;
   string TransactionId = 2;
   actor.PID Sender = 3;
+  string Storage = 4;
 }
 
 message ReturnItems{
   repeated Item Items = 1;
   string TransactionId = 2;
+  string Storage = 3;
 }
 
 message CheckPrice{

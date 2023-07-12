@@ -16,6 +16,7 @@ import (
 	"github.com/asynkron/protoactor-go/cluster/clusterproviders/automanaged"
 	"github.com/asynkron/protoactor-go/cluster/identitylookup/disthash"
 	"github.com/asynkron/protoactor-go/remote"
+	"github.com/google/uuid"
 )
 
 var naziv_skladista string
@@ -42,33 +43,48 @@ func (*KupacActor) Receive(context actor.Context) {
 		//msg.Items je lista ali pretpostavi da ima jedan clan
 		for _, artikal := range msg.Items {
 			_, kupljeno := mongo.KupiArtikal(artikal)
-			var porucenaKol int32
+			//var porucenaKol int32
 			if kupljeno {
-				porucenaKol = artikal.Amount
+				//porucenaKol = artikal.Amount
 				mongo.SacuvajTransakciju(artikal)
 			} else {
-				porucenaKol = 0
+				//porucenaKol = 0
 				//obavesti storage aktora da smo pri kraju sa zalihama za trazeni proizvod
 				//proceni
-				porucenaKol = mongo.ProceniPotrebnuKolicinu(artikal.ItemId)
+				//porucenaKol = mongo.ProceniPotrebnuKolicinu(artikal.ItemId)
 				//sacuvaj porudzbenicu
-				mongo.SacuvajPorudzbinu(artikal.ItemId, porucenaKol)
+				//mongo.SacuvajPorudzbinu(artikal.ItemId, porucenaKol)
 				//posalji zahtev nc cluster
-				grainDist := ClusterDist.Get("dobavljac_"+naziv_skladista, "Dobavljac")
-				context.Send(grainDist, &messages.PorudzbinaZaSuppliera{NazivSkladista: naziv_skladista, Stavke: []*messages.Proizvod{
-					{
-						Identifikator: artikal.ItemId,
-						Kolcicina:     porucenaKol,
-					},
-				},
-				})
+				//grainDist := ClusterDist.Get("dobavljac_"+naziv_skladista, "Supplier")
+				// zahtev := &messages.GetItems{TransactionId: uuid.NewString(), Storage: naziv_skladista, Items: []*messages.Item{
+				// 	{
+				// 		ItemId: artikal.ItemId,
+				// 		Amount: porucenaKol,
+				// 	},
+				// },
+				//}
+				// &messages.PorudzbinaZaSuppliera{NazivSkladista: naziv_skladista, Stavke: []*messages.Proizvod{
+				// 	{
+				// 		Identifikator: artikal.ItemId,
+				// 		Kolcicina:     porucenaKol,
+				// 	},
+				// },
+				// 	fmt.Println("Porucivanje:", artikal.ItemId, " : ", porucenaKol)
+				// 	context.Send(grainDist, &messages.GetItems{TransactionId: uuid.NewString(), Storage: naziv_skladista, Items: []*messages.Item{
+				// 		{
+				// 			ItemId: artikal.ItemId,
+				// 			Amount: porucenaKol,
+				// 		},
+				// 	},
+				// 	})
+				// }
+				// context.Respond(&messages.ArtikalPorucen{
+				// 	TransactionId:  msg.TransactionId,
+				// 	Nazivskladista: naziv_skladista,
+				// 	Identifikator:  artikal.ItemId,
+				// 	Kolicina:       porucenaKol,
+				// })
 			}
-			// context.Respond(&messages.ArtikalPorucen{
-			// 	TransactionId:  msg.TransactionId,
-			// 	Nazivskladista: naziv_skladista,
-			// 	Identifikator:  artikal.ItemId,
-			// 	Kolicina:       porucenaKol,
-			// })
 		}
 		context.Respond(&messages.BuyProduct2{TransactionId: msg.TransactionId, Items: msg.Items, Skladiste: naziv_skladista})
 	}
@@ -79,16 +95,32 @@ func (*StorageActor) Receive(context actor.Context) {
 	case *messages.BuyProduct: //Storage actor proveri da li ima potrebnih kolicina i vrati kolicinu za trazene artikle u skladistu
 		fmt.Println("Provera prozizvoda u skladistu :", naziv_skladista)
 		for _, artikal := range msg.Items {
-			artikal.Amount = int32(mongo.ProveriKolicine(artikal.ItemId))
+			trenutnaKol := int32(mongo.ProveriKolicine(artikal.ItemId))
+			if trenutnaKol < artikal.Amount {
+				porucenaKol := mongo.ProceniPotrebnuKolicinu(artikal.ItemId)
+				mongo.SacuvajPorudzbinu(artikal.ItemId, porucenaKol)
+				fmt.Println("Porucivanje:", artikal.ItemId, " : ", porucenaKol)
+				//grainDist := ClusterDist.Get("dobavljac_"+naziv_skladista+uuid.NewString(), "SupplierKind")
+				spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8080", "sup_"+msg.TransactionId, "Supplier", 10*time.Second)
+				systemVar.Root.Send(spawnResponse.Pid, &messages.GetItems{TransactionId: uuid.NewString(), Storage: naziv_skladista, Items: []*messages.Item{
+					{
+						ItemId: artikal.ItemId,
+						Amount: porucenaKol,
+					},
+				},
+				})
+
+			}
+			artikal.Amount = trenutnaKol
 			fmt.Println("Pronadjena kolicina za id:", artikal.ItemId, "=", artikal.Amount)
 		}
 		time.Sleep(3 * time.Second)
 		context.Respond(&messages.BuyProduct2{TransactionId: msg.TransactionId, Skladiste: naziv_skladista, Items: msg.Items})
 
-	case *messages.DostavaOdSuppliera: //promenjeno
-		for _, item := range msg.Stavke {
-			mongo.DodajAritkal(mongo.Proizvod{Identifikator: item.Identifikator, Kolicina: int(item.Kolcicina)})
-			mongo.SacuvajDostavuOdSuppliera(msg)
+	case *messages.ReturnItems: //promenjeno
+		for _, item := range msg.Items {
+			mongo.DodajAritkal(mongo.Proizvod{Identifikator: item.ItemId, Kolicina: int(item.Amount)})
+			mongo.SacuvajDostavuOdSuppliera(msg, naziv_skladista)
 		}
 	case *messages.GetAllProductsState:
 		fmt.Println("Provera ukupne kolicine:")
@@ -166,17 +198,23 @@ func main() {
 		break
 	}
 	//prijavi se kao klijent na cooridnatora da bi slao zahteve za suppliere
-	fmt.Println("Prijava skladista na cluster na cooridnaotru")
-	systemCoordClient := actor.NewActorSystem()
-	freePortA, _ := GetFreePort()
-	configCoord := remote.Configure("127.0.0.1", freePortA)
-	freePort, _ := GetFreePort()
-	clusterProvider := automanaged.NewWithConfig(1*time.Second, freePort, "localhost:"+strconv.Itoa(6330))
-	lookupCoord := disthash.New()
-	clusterConfigCoord := cluster.Configure("distributor_cluster", clusterProvider, lookupCoord, configCoord)
-	ClusterDist = cluster.New(systemCoordClient, clusterConfigCoord)
-	ClusterDist.StartClient()
-	defer ClusterDist.Shutdown(false)
+	// fmt.Println("Prijava skladista na cluster na cooridnaotru")
+	// systemCoordClient := actor.NewActorSystem()
+	// freePortA, _ := GetFreePort()
+	// configCoord := remote.Configure("127.0.0.1", freePortA)
+	// freePort, _ := GetFreePort()
+	// clusterProvider := automanaged.NewWithConfig(1*time.Second, freePort, "localhost:"+strconv.Itoa(6330))
+	// lookupCoord := disthash.New()
+	// clusterConfigCoord := cluster.Configure("distributor_cluster", clusterProvider, lookupCoord, configCoord)
+	// ClusterDist = cluster.New(systemCoordClient, clusterConfigCoord)
+	// ClusterDist.StartClient()
+	// defer ClusterDist.Shutdown(false)
+
+	systemVar = actor.NewActorSystem()
+	p, _ := GetFreePort()
+	remoteConfig := remote.Configure("127.0.0.1", p)
+	remoting = remote.NewRemote(systemVar, remoteConfig)
+	remoting.Start()
 
 	//
 	// Run till a signal comes
@@ -184,6 +222,9 @@ func main() {
 	signal.Notify(finish, os.Interrupt, os.Kill)
 	<-finish
 }
+
+var systemVar *actor.ActorSystem
+var remoting *remote.Remote
 
 func dodajKindPingPong(system *actor.ActorSystem) cluster.Kind {
 	fmt.Println("dodajKind")

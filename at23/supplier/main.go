@@ -4,9 +4,9 @@ import (
 	"at23/messages"
 	"fmt"
 	"math/rand"
+	"os"
 	"strconv"
 	"time"
-  "os"
 
 	console "github.com/asynkron/goconsole"
 	"github.com/asynkron/protoactor-go/actor"
@@ -23,7 +23,13 @@ func (state *SupplierActor) Receive(context actor.Context) {
 		context.Send(msg.Sender, &messages.ReturnItems{
 			TransactionId: msg.TransactionId,
 			Items:         msg.Items,
+			Storage:       msg.Storage,
 		})
+		// context.Respond(&messages.ReturnItems{
+		// 	TransactionId: msg.TransactionId,
+		// 	Items:         msg.Items,
+		// 	Storage:       msg.Storage,
+		// })
 
 	case *messages.CheckPrice:
 		fmt.Println("Checking price for items..", msg.Items)
@@ -41,8 +47,8 @@ var address string
 func main() {
 	system := actor.NewActorSystem()
 	address = os.Args[1]
-	port, _ := strconv.Atoi(os.Args[2])	
-  remoteConfig := remote.Configure(address, port)
+	port, _ := strconv.Atoi(os.Args[2])
+	remoteConfig := remote.Configure(address, port)
 
 	remoting = remote.NewRemote(system, remoteConfig)
 	remoting.Start()

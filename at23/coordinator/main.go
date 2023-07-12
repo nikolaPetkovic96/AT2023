@@ -223,18 +223,22 @@ func (state *StateActor) Receive(context actor.Context) {
 }
 
 func (state *SupplierActor) Receive(context actor.Context) {
+	fmt.Println("Pogodjen SUPPLIER !")
 	switch msg := context.Message().(type) {
 	// maybe remove this case in future
 	case *messages.GetItems:
 		// check prices first
+		fmt.Println("PORUCIVANJE od suppliera")
 		ch := make(chan *actor.Future, len(skladista_clusteri))
 		smallestPrice := math.Inf(1)
 		smallestPriceAddress := ""
 		for _, element := range suppliers {
+			fmt.Println("Element:" + element)
 			spawnResponse1, _ := remoting.SpawnNamed(element, "sup", "supplier", 10*time.Second)
 			ch <- context.RequestFuture(spawnResponse1.Pid, &messages.CheckPrice{
 				Items:  msg.Items,
 				Sender: context.Self(),
+				//Sender: spawnResponse1.Pid,
 			}, 10*time.Second)
 		}
 		time.Sleep(15 * time.Second)
@@ -268,11 +272,21 @@ func (state *SupplierActor) Receive(context actor.Context) {
 			Items:         msg.Items,
 			TransactionId: uuid.NewString(),
 			Sender:        context.Self(),
+			Storage:       msg.Storage,
 		})
 	case *messages.ReturnItems:
 		fmt.Println("GOT ITEMS BACK! YAY!", msg.Items, msg.TransactionId)
-		//var  isporuka messages.DostavaOdSuppliera
+		//var isporuka messages.DostavaOdSuppliera
 		//pozovi agenta za storage i posalji mu dostavu, takodje iz gloablne StorageNarucio ukloni ili celu transakciju, ako nije cela zavrsena
+		for _, storage := range skladista_clusteri {
+			if storage.Config.Name == msg.Storage {
+				fmt.Println("Slanje nove robe na: ", storage.Config.Name)
+				grainPid := storage.Get("dostavi_"+msg.TransactionId, "Storage")
+				context.Send(grainPid, msg)
+				break
+			}
+		}
+
 	}
 }
 
@@ -293,7 +307,6 @@ func main() {
 	clusterProvider := automanaged.NewWithConfig(1*time.Second, 6330, "localhost:6330")
 	lookup := disthash.New()
 	DistributorKind := dodajKindDistrubutorActor(system)
-
 	clusterConfig := cluster.Configure("distributor_cluster", clusterProvider, lookup, config, cluster.WithKinds(&DistributorKind))
 	ClusterDist = cluster.New(system, clusterConfig)
 	ClusterDist.StartMember()
@@ -312,8 +325,9 @@ func main() {
 	remoting.Register("supplier-register", actor.PropsFromProducer(func() actor.Actor { return &SupplierRegisterActor{} }))
 
 	// START OF SECTOR
-	// for test purposes only for now, actor needs to be spawned elsewhere
-	// props := actor.PropsFromProducer(func() actor.Actor { return &SupplierActor{} })
+	//for test purposes only for now, actor needs to be spawned elsewhere
+	props := actor.PropsFromProducer(func() actor.Actor { return &SupplierActor{} })
+	remoting.Register("Supplier", props)
 	// pid := system2.Root.Spawn(props)
 	// spawnResponse, _ := remoting.SpawnNamed("127.0.0.1:8093", "sup", "supplier", 10*time.Second)
 	// system2.Root.Send(spawnResponse.Pid, &messages.GetItems{
@@ -328,7 +342,7 @@ func main() {
 	// 		},
 	// 	},
 	// 	TransactionId: uuid.NewString(),
-	// Sender: pid,
+	// 	Sender:        pid,
 	// })
 	// END OF SECTOR
 
