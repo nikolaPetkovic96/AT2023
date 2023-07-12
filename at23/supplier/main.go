@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"os/signal"
 	"strconv"
 	"time"
 
@@ -54,7 +55,7 @@ func main() {
 	remoting.Start()
 
 	remoting.Register("supplier", actor.PropsFromProducer(func() actor.Actor { return &SupplierActor{} }))
-	remoting.SpawnNamed(address+":"+strconv.Itoa(port), "sup", "supplier", 3*time.Second)
+	remoting.SpawnNamed(address+":"+strconv.Itoa(port), "sup_"+address, "supplier", 3*time.Second)
 
 	// regisering on coordinator
 	spawnResponse, err := remoting.SpawnNamed("127.0.0.1:8080", "supplier-register", "supplier-register", 3*time.Second)
@@ -63,6 +64,10 @@ func main() {
 	}
 
 	console.ReadLine()
+
+	finish := make(chan os.Signal, 1)
+	signal.Notify(finish, os.Interrupt, os.Kill)
+	<-finish
 }
 
 func randFloat(min, max float64) float64 {
