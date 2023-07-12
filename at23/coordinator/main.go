@@ -98,22 +98,79 @@ func (state *ConsumerActor) Receive(context actor.Context) {
 	case *messages.BuyProduct:
 		fmt.Println("Requested items:", msg.Items)
 		//context.Send(msg.Sender, &messages.CompletedTransaction{TransactionId: msg.TransactionId})
-		//ch := make(chan *actor.Future, len(skladista_clusteri))
+		ch := make(chan *actor.Future, len(skladista_clusteri))
 		//var pids []*actor.PID
 		for i, skl := range skladista_clusteri {
-			pid := skl.Get("porudzbina_"+skl.Config.Name+strconv.Itoa(i), "Kupac")
+			pid := skl.Get("porudzbina_"+skl.Config.Name+strconv.Itoa(i), "Storage")
 			msg.Sender = pid
-			future := context.RequestFuture(pid, msg, 10*time.Second)
-			//ch<- context.RequestFuture(pid, msg, 10*time.Second)
-			result, err := future.Result()
+			//future := context.RequestFuture(pid, msg, 10*time.Second)
+			ch <- context.RequestFuture(pid, msg, 10*time.Second)
+			// result, err := future.Result()
+			// if err != nil {
+			// 	fmt.Println(err.Error(), skl)
+			// 	return
+			// }
+			// fmt.Printf("Odgovor sa skladista %v", result)
+		}
+
+		time.Sleep(15 * time.Second)
+		close(ch)
+		stanjaMap := make(map[string]*messages.BuyProduct2)
+		var poruciIz string
+		for temp := range ch {
+			result, err := temp.Result()
 			if err != nil {
-				fmt.Println(err.Error(), skl)
+				fmt.Println(err.Error())
 				return
 			}
-			fmt.Printf("Odgovor sa skladista %v", result)
-
-			//ch <- context.RequestFuture(skadGraidPid, msg, 10*time.Second)
+			fmt.Println("Received", result)
+			stanje, ok := result.(*messages.BuyProduct2)
+			if ok {
+				stanjaMap[stanje.Skladiste] = stanje
+			}
 		}
+		for key, elem := range stanjaMap {
+			mapaProizvoda := make(map[string]int)
+			for _, proizvod := range elem.Items {
+				mapaProizvoda[proizvod.ItemId] = int(proizvod.Amount)
+			}
+			imaSve := true
+			for _, item := range msg.Items {
+				if item.Amount > int32(mapaProizvoda[item.ItemId]) {
+					imaSve = false
+					break
+				}
+			}
+			if imaSve == true {
+				poruciIz = key
+				break
+			}
+		}
+		var temp cluster.Cluster
+		for _, sklad := range skladista_clusteri {
+			if sklad.Config.Name == poruciIz {
+				temp = sklad
+			}
+		}
+		pid := temp.Get("por_"+msg.TransactionId, "Kupac")
+		future := context.RequestFuture(pid, msg, 10*time.Second)
+		result, err := future.Result()
+		if err != nil {
+			fmt.Println(err.Error())
+			return
+		}
+		fmt.Printf("Odgovor sa kupovinu %v", result)
+
+		// result, error := future.Result()
+		// if error != nil {
+		// 	fmt.Println(err.Error())
+		// 	return
+		// }
+		// odgovor, ok := result.(*messages.BuyProduct2)
+		// if ok {
+		// 	context.Respond(odgovor)
+		// }
+
 	}
 }
 
@@ -121,20 +178,47 @@ func (state *StateActor) Receive(context actor.Context) {
 	switch msg := context.Message().(type) {
 	case *messages.GetAllProductsState:
 		fmt.Println("Pulling data..")
-		// TODO write code that pulls all items from databases and sums them up
-		context.Send(msg.Sender, &messages.ReturnAllProductsState{
-			Items: []*messages.Item{
-				{
-					ItemId: "123",
-					Amount: 2,
-				},
-				{
-					ItemId: "442",
-					Amount: 4,
-				},
-			},
-		})
+		//TODO write code that pulls all items from databases and sums them up
+		// context.Send(msg.Sender, &messages.ReturnAllProductsState{
+		// 	Items: []*messages.Item{
+		// 		{
+		// 			ItemId: "1",
+		// 			Amount: 2000,
+		// 		},
+		// 		{
+		// 			ItemId: "2",
+		// 			Amount: 2000,
+		// 		},
+		// 		{
+		// 			ItemId: "3",
+		// 			Amount: 2000,
+		// 		},
+		// 	},
+		// })
+		ch := make(chan *actor.Future, len(skladista_clusteri))
+		var retItems []*messages.Item
+		for _, skl := range skladista_clusteri {
+			grainPid := skl.Get("pp"+skl.Config.Name, "Storage")
+			ch <- context.RequestFuture(grainPid, msg, 10*time.Second)
+		}
+		time.Sleep(5 * time.Second)
+		close(ch)
+		for temp := range ch {
+			//temp := <-ch
 
+			result, err := temp.Result()
+			if err != nil {
+				fmt.Println(err.Error())
+				return
+			}
+			lista, ok := result.(*messages.ReturnAllProductsState)
+			if ok {
+				retItems = append(retItems, lista.Items...)
+			}
+		}
+		fmt.Println("Duzina liste: ", len(retItems))
+		fmt.Println("RetItems:", retItems)
+		context.Send(msg.Sender, &messages.ReturnAllProductsState{Items: CollectData(retItems)})
 	}
 }
 
@@ -145,7 +229,7 @@ func (state *SupplierActor) Receive(context actor.Context) {
 		// check prices first
 		ch := make(chan *actor.Future, len(skladista_clusteri))
 		smallestPrice := math.Inf(1)
-    smallestPriceAddress := ""
+		smallestPriceAddress := ""
 		for _, element := range suppliers {
 			spawnResponse1, _ := remoting.SpawnNamed(element, "sup", "supplier", 10*time.Second)
 			ch <- context.RequestFuture(spawnResponse1.Pid, &messages.CheckPrice{
@@ -173,20 +257,22 @@ func (state *SupplierActor) Receive(context actor.Context) {
 
 		fmt.Println("Got smallestPrice of", smallestPrice, smallestPriceAddress)
 
-    if smallestPrice == math.Inf(1) || smallestPriceAddress == "" {
-      fmt.Println("Something went wrong, data was corrupted")
-      return
-    }
+		if smallestPrice == math.Inf(1) || smallestPriceAddress == "" {
+			fmt.Println("Something went wrong, data was corrupted")
+			return
+		}
 
 		// send request to cheapest supplier
 		spawnResponse, _ := remoting.SpawnNamed(smallestPriceAddress, "sup", "supplier", 10*time.Second)
 		context.Send(spawnResponse.Pid, &messages.GetItems{
-			Items: msg.Items, 
+			Items:         msg.Items,
 			TransactionId: uuid.NewString(),
 			Sender:        context.Self(),
 		})
 	case *messages.ReturnItems:
 		fmt.Println("GOT ITEMS BACK! YAY!", msg.Items, msg.TransactionId)
+		//var  isporuka messages.DostavaOdSuppliera
+		//pozovi agenta za storage i posalji mu dostavu, takodje iz gloablne StorageNarucio ukloni ili celu transakciju, ako nije cela zavrsena
 	}
 }
 
@@ -200,15 +286,18 @@ func (state SupplierRegisterActor) Receive(context actor.Context) {
 }
 
 func main() {
-	// system := actor.NewActorSystem()
-	// cluster_system = system
-	// config := remote.Configure("127.0.0.1", 8079)
-	// clusterProvider := automanaged.NewWithConfig(1*time.Second, 6330, "localhost:6331")
-	// lookup := disthash.New()
-	// clusterConfig := cluster.Configure("skladiste", clusterProvider, lookup, config)
-	// c := cluster.New(system, clusterConfig)
-	// c.StartClient()
-	// defer c.Shutdown(false)
+	//inicjalizacija klastera kojem storage-i salju zahteve
+	system := actor.NewActorSystem()
+	cluster_system = system
+	config := remote.Configure("127.0.0.1", 8079)
+	clusterProvider := automanaged.NewWithConfig(1*time.Second, 6330, "localhost:6330")
+	lookup := disthash.New()
+	DistributorKind := dodajKindDistrubutorActor(system)
+
+	clusterConfig := cluster.Configure("distributor_cluster", clusterProvider, lookup, config, cluster.WithKinds(&DistributorKind))
+	ClusterDist = cluster.New(system, clusterConfig)
+	ClusterDist.StartMember()
+	defer ClusterDist.Shutdown(false)
 
 	// //konfiguracija servera- bez clustera
 	system2 := actor.NewActorSystem()
@@ -252,17 +341,17 @@ func main() {
 
 	//testiraj slanje zahteva na storage
 	time.Sleep(10 * time.Second)
-	kupacProp := actor.PropsFromProducer(func() actor.Actor {
-		return &ConsumerActor{
-			system: system2,
-		}
-	})
-	KupacPid := system2.Root.Spawn(kupacProp)
-	system2.Root.Send(KupacPid, &messages.BuyProduct{
-		Sender:        KupacPid,
-		TransactionId: "1",
-		Items:         []*messages.Item{{ItemId: "1", Amount: 2000}, {ItemId: "1", Amount: 20}, {ItemId: "42", Amount: 2000}, {ItemId: "2", Amount: 2}},
-	})
+	// kupacProp := actor.PropsFromProducer(func() actor.Actor {
+	// 	return &ConsumerActor{
+	// 		system: system2,
+	// 	}
+	// })
+	// KupacPid := system2.Root.Spawn(kupacProp)
+	// system2.Root.Send(KupacPid, &messages.BuyProduct{
+	// 	Sender:        KupacPid,
+	// 	TransactionId: "1",
+	// 	Items:         []*messages.Item{{ItemId: "1", Amount: 2000}, {ItemId: "1", Amount: 20}, {ItemId: "42", Amount: 2000}, {ItemId: "2", Amount: 2}},
+	// })
 	//////////kraj test slanje zahteva na storage
 	//
 	// Run till a signal comes
@@ -307,4 +396,51 @@ func GetFreePort() (int, error) {
 	}
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+func dodajKindDistrubutorActor(system *actor.ActorSystem) cluster.Kind {
+	fmt.Println("dodajKind Distributor")
+	kindPingPong := cluster.NewKind(
+		"Distributor",
+		actor.PropsFromProducer(func() actor.Actor {
+			return &DistributorActor{
+				system: system,
+			}
+		}))
+	return *kindPingPong
+}
+
+type DistributorActor struct {
+	system *actor.ActorSystem
+}
+
+func (p *DistributorActor) Receive(ctx actor.Context) {
+	fmt.Println("Got request from a STORAGE")
+	switch msg := ctx.Message().(type) {
+	case *messages.PorudzbinaZaSuppliera: //storage porucuje
+		fmt.Println("Pogodjen DISTIRBUTOR od strana skladista", msg)
+	case *messages.DostavaOdSuppliera: //supplier dobavio -prosledi za storage
+
+	}
+
+}
+
+var StorageNarucio []*messages.PorudzbinaZaSuppliera
+var ClusterDist *cluster.Cluster
+
+func CollectData(list []*messages.Item) []*messages.Item {
+	var returnList []*messages.Item
+	for _, item := range list {
+		ind := false
+		for _, item2 := range returnList {
+			if item.ItemId == item2.ItemId {
+				item2.Amount += item.Amount
+				ind = true
+			}
+		}
+		if ind == false {
+			returnList = append(returnList, &messages.Item{ItemId: item.ItemId, Amount: item.Amount})
+		}
+	}
+	return returnList
 }

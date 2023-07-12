@@ -63,13 +63,14 @@ func (*KupacActor) Receive(context actor.Context) {
 				},
 				})
 			}
-			context.Respond(&messages.ArtikalPorucen{
-				TransactionId:  msg.TransactionId,
-				Nazivskladista: naziv_skladista,
-				Identifikator:  artikal.ItemId,
-				Kolicina:       porucenaKol,
-			})
+			// context.Respond(&messages.ArtikalPorucen{
+			// 	TransactionId:  msg.TransactionId,
+			// 	Nazivskladista: naziv_skladista,
+			// 	Identifikator:  artikal.ItemId,
+			// 	Kolicina:       porucenaKol,
+			// })
 		}
+		context.Respond(&messages.BuyProduct2{TransactionId: msg.TransactionId, Items: msg.Items, Skladiste: naziv_skladista})
 	}
 }
 func (*StorageActor) Receive(context actor.Context) {
@@ -82,7 +83,7 @@ func (*StorageActor) Receive(context actor.Context) {
 			fmt.Println("Pronadjena kolicina za id:", artikal.ItemId, "=", artikal.Amount)
 		}
 		time.Sleep(3 * time.Second)
-		context.Respond(msg)
+		context.Respond(&messages.BuyProduct2{TransactionId: msg.TransactionId, Skladiste: naziv_skladista, Items: msg.Items})
 
 	case *messages.DostavaOdSuppliera: //promenjeno
 		for _, item := range msg.Stavke {
